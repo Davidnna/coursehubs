@@ -11,9 +11,9 @@ const nav = [
 
 function Brand() {
   return (
-    <Link to="/" className="brand" aria-label="CourseHub home">
+    <Link to="/" className="brand" aria-label="CourseHubs home">
       <span className="brand-mark"><span className="mark-dot"/><span className="mark-line mark-line-one"/><span className="mark-line mark-line-two"/><span className="mark-line mark-line-three"/></span>
-      <span className="brand-wordmark">course<span>hub</span><small>THE CS RESOURCE INDEX</small></span>
+      <span className="brand-wordmark">course<span>hubs</span><small>THE CS RESOURCE INDEX</small></span>
     </Link>
   );
 }
@@ -48,11 +48,11 @@ export default function Layout() {
           <div className="topbar-actions">
             <Link to="/catalog" className="topbar-search"><Icon name="search" size={17}/><span>Search resources</span><kbd>/</kbd></Link>
             <Link to="/login" className="topbar-login">Sign in</Link>
-            <Link to="/register" className="btn btn-primary btn-small">Join CourseHub <Icon name="arrowUpRight" size={15}/></Link>
+            <Link to="/register" className="btn btn-primary btn-small">Join CourseHubs <Icon name="arrowUpRight" size={15}/></Link>
           </div>
         </header>
         <div className={`page-content ${isAuth ? 'page-content-auth' : ''}`}><Outlet/></div>
-        <footer className="site-footer"><span>© 2026 CourseHub · Built for EBSU Computer Science</span><span>Find it. Learn it. Make it yours.</span></footer>
+        <footer className="site-footer"><span>© 2026 CourseHubs · Built for EBSU Computer Science</span><span>Find it. Learn it. Make it yours.</span></footer>
       </div>
     </div>
   );

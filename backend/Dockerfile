@@ -9,8 +9,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends libpq-dev \
     && sed -i 's/Listen 80/Listen 10000/' /etc/apache2/ports.conf \
     && sed -i 's/:80>/:10000>/' /etc/apache2/sites-available/000-default.conf \
     && sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html/public|' /etc/apache2/sites-available/000-default.conf \
-    && printf '<Directory /var/www/html/public>\n    Options FollowSymLinks\n    AllowOverride All\n    Require all granted\n</Directory>\n' > /etc/apache2/conf-available/coursehub.conf \
-    && a2enconf coursehub
+    && printf '<Directory /var/www/html/public>\n    Options FollowSymLinks\n    AllowOverride All\n    Require all granted\n</Directory>\n' > /etc/apache2/conf-available/coursehubs.conf \
+    && a2enconf coursehubs
 
 WORKDIR /var/www/html
 COPY . .

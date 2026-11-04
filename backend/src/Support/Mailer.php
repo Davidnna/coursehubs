@@ -14,7 +14,7 @@ final class Mailer
 
         return self::send(
             $toEmail,
-            'Verify your CourseHub account',
+            'Verify your CourseHubs account',
             "Hi {$firstName},\n\nPlease verify your account by visiting:\n{$verifyUrl}\n\nThis link expires in 24 hours."
         );
     }
@@ -41,7 +41,7 @@ final class Mailer
                 'Content-Type: application/json',
             ],
             CURLOPT_POSTFIELDS => json_encode([
-                'sender' => ['name' => 'CourseHub', 'email' => Config::get('MAIL_FROM', 'no-reply@coursehub.local')],
+                'sender' => ['name' => 'CourseHubs', 'email' => Config::get('MAIL_FROM', 'no-reply@coursehubs.local')],
                 'to' => [['email' => $toEmail]],
                 'subject' => $subject,
                 'textContent' => $textBody,

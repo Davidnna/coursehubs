@@ -7,16 +7,17 @@
 -- lower levels are on the new one — expected_graduation_session_id
 -- handles this per student/adviser, not this table).
 --
--- Adjust which session is_current=1 to match whenever this is run.
+-- Adjust which session is_current=TRUE to match whenever this is run.
 -- =====================================================================
 
 INSERT INTO academic_sessions (name, is_current) VALUES
-    ('2022/2023', 0),
-    ('2023/2024', 0),
-    ('2024/2025', 0),
-    ('2025/2026', 1),
-    ('2026/2027', 0),
-    ('2027/2028', 0),
-    ('2028/2029', 0),
-    ('2029/2030', 0),
-    ('2030/2031', 0);
+    ('2022/2023', FALSE),
+    ('2023/2024', FALSE),
+    ('2024/2025', FALSE),
+    ('2025/2026', TRUE),
+    ('2026/2027', FALSE),
+    ('2027/2028', FALSE),
+    ('2028/2029', FALSE),
+    ('2029/2030', FALSE),
+    ('2030/2031', FALSE)
+ON CONFLICT (name) DO NOTHING;

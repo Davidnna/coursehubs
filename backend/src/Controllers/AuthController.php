@@ -16,6 +16,7 @@ final class AuthController
             ->email('email')
             ->required('phone', 'Phone number')
             ->required('password', 'Password')
+            ->required('account_type', 'Account type')
             ->minLength('password', 8, 'Password')
             ->in('account_type', ['student', 'staff'], 'Account type');
 
@@ -39,7 +40,7 @@ final class AuthController
         // constraints, so the person gets a clear message about
         // exactly which field collided.
         $email = strtolower(trim($body['email']));
-        $existing = $db->prepare('SELECT id FROM users WHERE email_active = ? LIMIT 1');
+        $existing = $db->prepare('SELECT id FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1');
         $existing->execute([$email]);
         if ($existing->fetch()) {
             Response::error('Please fix the errors below.', 422, [
@@ -49,7 +50,7 @@ final class AuthController
 
         if ($accountType === 'student') {
             $regNo = trim($body['reg_no']);
-            $check = $db->prepare('SELECT id FROM users WHERE regno_active = ? LIMIT 1');
+            $check = $db->prepare('SELECT id FROM users WHERE reg_no = ? AND deleted_at IS NULL LIMIT 1');
             $check->execute([$regNo]);
             if ($check->fetch()) {
                 Response::error('Please fix the errors below.', 422, [
@@ -58,7 +59,7 @@ final class AuthController
             }
         } else {
             $staffNo = trim($body['staff_no']);
-            $check = $db->prepare('SELECT id FROM users WHERE staffno_active = ? LIMIT 1');
+            $check = $db->prepare('SELECT id FROM users WHERE staff_no = ? AND deleted_at IS NULL LIMIT 1');
             $check->execute([$staffNo]);
             if ($check->fetch()) {
                 Response::error('Please fix the errors below.', 422, [
@@ -75,37 +76,53 @@ final class AuthController
 
         $passwordHash = password_hash($body['password'], PASSWORD_BCRYPT);
 
-        if ($accountType === 'student') {
-            $stmt = $db->prepare(
-                'INSERT INTO users
-                    (first_name, surname, middle_name, email, password_hash, phone,
-                     reg_no, account_type, level, expected_graduation_session_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-            );
-            $stmt->execute([
-                $firstName, $surname, $middleName, $email, $passwordHash, trim($body['phone']),
-                trim($body['reg_no']), 'student', (int) $body['level'], (int) $body['expected_graduation_session_id'],
-            ]);
-        } else {
-            $stmt = $db->prepare(
-                'INSERT INTO users
-                    (first_name, surname, middle_name, email, password_hash, phone,
-                     staff_no, account_type)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-            );
-            $stmt->execute([
-                $firstName, $surname, $middleName, $email, $passwordHash, trim($body['phone']),
-                trim($body['staff_no']), 'staff',
-            ]);
-        }
-
-        $userId = (int) $db->lastInsertId();
-
-        // Email verification token — 24 hour expiry.
+        // Create the account and verification token atomically.
         $token = bin2hex(random_bytes(32));
         $expiresAt = (new DateTime('+24 hours'))->format('Y-m-d H:i:s');
-        $db->prepare('INSERT INTO email_verifications (user_id, token, expires_at) VALUES (?, ?, ?)')
-            ->execute([$userId, $token, $expiresAt]);
+
+        $db->beginTransaction();
+        try {
+            if ($accountType === 'student') {
+                $stmt = $db->prepare(
+                    'INSERT INTO users
+                        (first_name, surname, middle_name, email, password_hash, phone,
+                         reg_no, account_type, level, expected_graduation_session_id)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     RETURNING id'
+                );
+                $stmt->execute([
+                    $firstName, $surname, $middleName, $email, $passwordHash, trim($body['phone']),
+                    trim($body['reg_no']), 'student', (int) $body['level'], (int) $body['expected_graduation_session_id'],
+                ]);
+            } else {
+                $stmt = $db->prepare(
+                    'INSERT INTO users
+                        (first_name, surname, middle_name, email, password_hash, phone,
+                         staff_no, account_type)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                     RETURNING id'
+                );
+                $stmt->execute([
+                    $firstName, $surname, $middleName, $email, $passwordHash, trim($body['phone']),
+                    trim($body['staff_no']), 'staff',
+                ]);
+            }
+
+            $userId = (int) $stmt->fetchColumn();
+
+            // Email verification token — 24 hour expiry.
+            $db->prepare('INSERT INTO email_verifications (user_id, token, expires_at) VALUES (?, ?, ?)')
+                ->execute([$userId, $token, $expiresAt]);
+
+            $db->commit();
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            throw $e;
+        }
+
+        $emailSent = false;
 
         // Welcome + verification email would be sent here via Brevo.
         // Skipped for now until a real API key is configured — the

@@ -1,9 +1,9 @@
 <?php
 
 /**
- * Single shared PDO connection, built from Config values.
- * All timestamps are handled in WAT (Africa/Lagos) — see public/index.php
- * where date_default_timezone_set() is called before anything else runs.
+ * Single shared PDO connection for PostgreSQL (Neon).
+ * DATABASE_URL is supplied by Render in production and by backend/.env locally.
+ * The connection timezone is Africa/Lagos; timestamps use TIMESTAMPTZ.
  */
 final class Database
 {
@@ -12,28 +12,37 @@ final class Database
     public static function connection(): PDO
     {
         if (self::$connection === null) {
-            $host = Config::required('DB_HOST');
-            $name = Config::required('DB_NAME');
-            $user = Config::required('DB_USER');
-            $pass = Config::get('DB_PASS', '');
-            $port = Config::get('DB_PORT', '3306');
+            $databaseUrl = Config::required('DATABASE_URL');
+            $parts = parse_url($databaseUrl);
 
-            $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+            if ($parts === false || empty($parts['host']) || empty($parts['path'])) {
+                throw new RuntimeException('DATABASE_URL is not a valid PostgreSQL connection URL.');
+            }
 
-            self::$connection = new PDO($dsn, $user, $pass, [
+            $database = rawurldecode(ltrim($parts['path'], '/'));
+            $username = rawurldecode($parts['user'] ?? '');
+            $password = rawurldecode($parts['pass'] ?? '');
+            $host = $parts['host'];
+            $port = (int) ($parts['port'] ?? 5432);
+
+            $query = [];
+            parse_str($parts['query'] ?? '', $query);
+            $sslMode = $query['sslmode'] ?? 'require';
+
+            // Neon requires TLS. Do not allow an accidental plaintext connection.
+            if (!in_array($sslMode, ['require', 'verify-ca', 'verify-full'], true)) {
+                $sslMode = 'require';
+            }
+
+            $dsn = "pgsql:host={$host};port={$port};dbname={$database};sslmode={$sslMode}";
+
+            self::$connection = new PDO($dsn, $username, $password, [
                 PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES   => false,
             ]);
 
-            // Keep MySQL's own session timezone aligned with WAT too, so
-            // DB-side NOW()/CURRENT_TIMESTAMP defaults match the app's
-            // timezone rather than the server's system default. Done as
-            // a separate query rather than PDO::MYSQL_ATTR_INIT_COMMAND,
-            // since that constant is only defined once the pdo_mysql
-            // driver is fully initialised — referencing it directly in
-            // the options array broke on some local PHP setups.
-            self::$connection->exec("SET time_zone = '+01:00'");
+            self::$connection->exec("SET TIME ZONE 'Africa/Lagos'");
         }
 
         return self::$connection;

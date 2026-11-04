@@ -37,7 +37,8 @@ final class EmailQuota
 
         $db->prepare(
             'INSERT INTO email_send_log (send_date, sent_count) VALUES (?, ?)
-             ON DUPLICATE KEY UPDATE sent_count = sent_count + VALUES(sent_count)'
+             ON CONFLICT (send_date) DO UPDATE
+             SET sent_count = email_send_log.sent_count + EXCLUDED.sent_count'
         )->execute([$today, $count]);
     }
 }

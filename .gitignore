@@ -1,0 +1,28 @@
+# secrets / local config
+backend/.env
+frontend/.env
+*.env.local
+
+# dependencies and build output
+node_modules/
+frontend/dist/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Extra credentials and sensitive student documents
+.env
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+*service-account*.json
+
+# Personal academic reference files should not be published as code
+reference_documents/
+# Contains personal working-history notes, not needed for deployment
+docs/09_WORKING_WITH_DAVID_AND_HISTORY.md

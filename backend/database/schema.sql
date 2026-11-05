@@ -378,7 +378,7 @@ INSERT INTO admin_settings (setting_key, setting_value) VALUES
     ('login_lockout_cooldown_minutes', '15'),
     ('storage_warning_threshold_percent', '80'),
     ('max_file_size_bytes', '5242880'),
-    ('brevo_daily_quota', '300')
+    ('email_daily_quota', '300')
 ON CONFLICT (setting_key) DO NOTHING;
 
 -- =====================================================================

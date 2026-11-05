@@ -1,11 +1,8 @@
 <?php
 
 /**
- * Tracks emails sent per calendar day (WAT) against the Brevo free
- * tier's daily quota, read from admin_settings. Used to decide, for a
- * batch send, whether to send at all — a batch that would exceed the
- * remaining quota is skipped entirely rather than delivered to only
- * part of the recipients.
+ * Tracks application-initiated transactional emails per calendar day (WAT).
+ * The configurable limit is an application safeguard, not a Nylas plan limit.
  */
 final class EmailQuota
 {
@@ -14,10 +11,18 @@ final class EmailQuota
         $db = Database::connection();
         $today = (new DateTime())->format('Y-m-d');
 
-        $quotaStmt = $db->prepare("SELECT setting_value FROM admin_settings WHERE setting_key = 'brevo_daily_quota'");
+        $quotaStmt = $db->prepare("SELECT setting_value FROM admin_settings WHERE setting_key = 'email_daily_quota'");
         $quotaStmt->execute();
-        $quota = (int) ($quotaStmt->fetchColumn() ?: 300);
+        $quotaValue = $quotaStmt->fetchColumn();
 
+        // Backward compatibility for databases created before the provider-neutral setting was introduced.
+        if ($quotaValue === false) {
+            $legacyStmt = $db->prepare("SELECT setting_value FROM admin_settings WHERE setting_key = 'brevo_daily_quota'");
+            $legacyStmt->execute();
+            $quotaValue = $legacyStmt->fetchColumn();
+        }
+
+        $quota = (int) ($quotaValue ?: 300);
         $sentStmt = $db->prepare('SELECT sent_count FROM email_send_log WHERE send_date = ?');
         $sentStmt->execute([$today]);
         $sent = (int) ($sentStmt->fetchColumn() ?: 0);

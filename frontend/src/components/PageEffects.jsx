@@ -1,7 +1,81 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
-/** Resets the viewport on route changes and adds subtle, motion-aware reveals. */
+let activeScrollFrame = null;
+let activeScrollCleanup = null;
+
+function stopAnimatedScroll() {
+  if (activeScrollFrame !== null) cancelAnimationFrame(activeScrollFrame);
+  activeScrollFrame = null;
+  activeScrollCleanup?.();
+  activeScrollCleanup = null;
+}
+
+/**
+ * Animates the document scroll position with a predictable easing curve.
+ * This avoids browser-dependent behavior from CSSOM's native smooth scrolling.
+ */
+function animateWindowScroll(targetY, requestedDuration) {
+  stopAnimatedScroll();
+
+  const root = document.documentElement;
+  const maxScroll = Math.max(0, root.scrollHeight - window.innerHeight);
+  const destination = Math.min(maxScroll, Math.max(0, targetY));
+  const startY = window.scrollY || root.scrollTop || 0;
+  const distance = destination - startY;
+
+  if (Math.abs(distance) < 1) return;
+
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    && document.documentElement.dataset.motion !== 'full';
+  const duration = requestedDuration ?? (reducedMotion
+    ? 220
+    : Math.min(1250, Math.max(620, Math.abs(distance) * 0.62)));
+  const startTime = performance.now();
+
+  const cancelOnUserInput = (event) => {
+    if (event.type === 'keydown' && !['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) return;
+    stopAnimatedScroll();
+  };
+
+  window.addEventListener('wheel', cancelOnUserInput, { passive: true });
+  window.addEventListener('touchstart', cancelOnUserInput, { passive: true });
+  window.addEventListener('pointerdown', cancelOnUserInput, { passive: true });
+  window.addEventListener('keydown', cancelOnUserInput);
+
+  activeScrollCleanup = () => {
+    window.removeEventListener('wheel', cancelOnUserInput);
+    window.removeEventListener('touchstart', cancelOnUserInput);
+    window.removeEventListener('pointerdown', cancelOnUserInput);
+    window.removeEventListener('keydown', cancelOnUserInput);
+  };
+
+  const easeInOutCubic = (progress) => (progress < 0.5
+    ? 4 * progress * progress * progress
+    : 1 - Math.pow(-2 * progress + 2, 3) / 2);
+
+  const step = (now) => {
+    const progress = Math.min(1, (now - startTime) / duration);
+    const eased = easeInOutCubic(progress);
+    const nextY = startY + distance * eased;
+
+    // The document uses scroll-behavior:auto; this frame-by-frame update is
+    // the sole animation, avoiding nested native smooth-scroll animations.
+    window.scrollTo(0, nextY);
+
+    if (progress < 1) {
+      activeScrollFrame = requestAnimationFrame(step);
+    } else {
+      activeScrollFrame = null;
+      activeScrollCleanup?.();
+      activeScrollCleanup = null;
+    }
+  };
+
+  activeScrollFrame = requestAnimationFrame(step);
+}
+
+/** Resets the viewport on route changes and adds motion-aware content reveals. */
 export function PageEffects() {
   const location = useLocation();
 
@@ -12,26 +86,49 @@ export function PageEffects() {
   }, []);
 
   useLayoutEffect(() => {
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const behavior = reduceMotion ? 'auto' : 'smooth';
-
     if (location.hash) {
       let targetId = location.hash.slice(1);
-      try { targetId = decodeURIComponent(targetId); } catch { /* Keep the literal hash when it is malformed. */ }
+      try { targetId = decodeURIComponent(targetId); } catch { /* Keep malformed hash literal. */ }
       const target = document.getElementById(targetId);
-      if (target) target.scrollIntoView({ behavior, block: 'start' });
-      else window.scrollTo({ top: 0, left: 0, behavior });
+      if (target) {
+        const top = window.scrollY + target.getBoundingClientRect().top - 88;
+        animateWindowScroll(top);
+      } else {
+        animateWindowScroll(0);
+      }
     } else {
-      window.scrollTo({ top: 0, left: 0, behavior });
+      animateWindowScroll(0);
     }
 
     const mainContent = document.getElementById('main-content');
     if (mainContent) mainContent.focus({ preventScroll: true });
-  }, [location.key, location.hash]);
+  }, [location.pathname, location.hash]);
 
   useEffect(() => {
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduceMotion || !('IntersectionObserver' in window)) return undefined;
+    const handleAnchorClick = (event) => {
+      const link = event.target.closest?.('a[href^="#"]');
+      if (!link) return;
+      const href = link.getAttribute('href');
+      if (!href || href === '#') return;
+      let targetId = href.slice(1);
+      try { targetId = decodeURIComponent(targetId); } catch { /* Keep malformed hash literal. */ }
+      const target = document.getElementById(targetId);
+      if (!target) return;
+
+      event.preventDefault();
+      window.history.pushState(null, '', `#${encodeURIComponent(targetId)}`);
+      const top = window.scrollY + target.getBoundingClientRect().top - 88;
+      animateWindowScroll(top);
+    };
+
+    document.addEventListener('click', handleAnchorClick);
+    return () => document.removeEventListener('click', handleAnchorClick);
+  }, []);
+
+  useEffect(() => {
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      && document.documentElement.dataset.motion !== 'full';
+    if (reducedMotion || !('IntersectionObserver' in window)) return undefined;
 
     const selector = [
       '.marketing-section', '.marketing-benefit-card', '.marketing-audience-grid > article',
@@ -77,17 +174,12 @@ export function ScrollToTopButton() {
     return () => window.removeEventListener('scroll', updateVisibility);
   }, []);
 
-  function scrollToTop() {
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    window.scrollTo({ top: 0, left: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
-  }
-
   return (
     <button
       type="button"
       className={`scroll-to-top ${visible ? 'scroll-to-top-visible' : ''}`}
-      onClick={scrollToTop}
-      aria-label="Scroll to top"
+      onClick={() => animateWindowScroll(0)}
+      aria-label="Scroll smoothly to top"
       title="Scroll to top"
       tabIndex={visible ? 0 : -1}
     >

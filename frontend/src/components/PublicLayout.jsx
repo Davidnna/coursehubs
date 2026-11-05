@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import Icon from './Icon';
+import Ambient3D from './Ambient3D';
 import { useAuth } from '../auth/AuthContext';
 
 const links = [
@@ -45,6 +46,7 @@ export default function PublicLayout() {
 
   return (
     <div className="marketing-shell">
+      <Ambient3D/>
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <header className="marketing-header">
         <div className="marketing-header-inner">

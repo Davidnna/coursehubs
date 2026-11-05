@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import Icon from './Icon';
+import Ambient3D from './Ambient3D';
 import { useAuth } from '../auth/AuthContext';
 
 const workspaceNav = [
@@ -62,6 +63,7 @@ export default function WorkspaceLayout() {
 
   return (
     <div className="app-shell workspace-shell">
+      <Ambient3D/>
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <aside ref={sidebarRef} id="workspace-sidebar" className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`} aria-label="Workspace navigation">
         <div className="sidebar-top"><WorkspaceBrand/><button className="icon-button sidebar-close" aria-label="Close menu" onClick={() => { setMenuOpen(false); menuButtonRef.current?.focus(); }}><Icon name="x"/></button></div>

@@ -401,3 +401,309 @@ button, input, select, textarea { min-width: 0; }
   }
   .reveal-on-scroll { opacity: 1 !important; transform: none !important; }
 }
+
+/* Shared ambient CSS 3D scene: decorative, lightweight and non-interactive. */
+.marketing-shell,
+.app-shell.workspace-shell {
+  position: relative;
+  isolation: isolate;
+}
+.marketing-shell > :not(.ambient3d),
+.app-shell.workspace-shell > :not(.ambient3d) {
+  z-index: 1;
+}
+.marketing-shell > .marketing-header { z-index: 30; }
+.app-shell.workspace-shell > .sidebar { z-index: 20; }
+.app-shell.workspace-shell > .mobile-overlay { z-index: 15; }
+.ambient3d {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  perspective: 1100px;
+  transform-style: preserve-3d;
+  contain: layout paint;
+  opacity: .78;
+}
+.ambient3d__orbit {
+  position: absolute;
+  width: clamp(250px, 30vw, 430px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(66, 86, 244, .075);
+  border-radius: 50%;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.ambient3d__orbit--one {
+  left: -13vw;
+  top: 34%;
+  transform: rotateX(68deg) rotateY(-22deg);
+  animation: ambient-orbit-drift 24s ease-in-out infinite alternate;
+}
+.ambient3d__orbit--two {
+  right: -16vw;
+  top: 8%;
+  width: clamp(220px, 25vw, 360px);
+  border-color: rgba(196, 241, 92, .12);
+  transform: rotateX(72deg) rotateY(25deg);
+  animation: ambient-orbit-drift 29s ease-in-out infinite alternate-reverse;
+}
+.ambient3d__float {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  transform-style: preserve-3d;
+  will-change: transform;
+  filter: drop-shadow(0 18px 26px rgba(23, 30, 55, .08));
+}
+.ambient3d__float--cube {
+  top: 16%;
+  left: 5.5%;
+  width: 74px;
+  height: 74px;
+  animation: ambient-float-a 9s ease-in-out infinite;
+}
+.ambient3d__cube {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  transform-style: preserve-3d;
+  animation: ambient-cube-spin 27s linear infinite;
+}
+.ambient3d__cube-face {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(66, 86, 244, .32);
+  background: linear-gradient(145deg, rgba(255,255,255,.74), rgba(66,86,244,.09));
+  box-shadow: inset 0 0 18px rgba(66,86,244,.06);
+  backface-visibility: visible;
+}
+.ambient3d__cube-face--front { transform: translateZ(29px); }
+.ambient3d__cube-face--back { transform: rotateY(180deg) translateZ(29px); }
+.ambient3d__cube-face--right { transform: rotateY(90deg) translateZ(29px); }
+.ambient3d__cube-face--left { transform: rotateY(-90deg) translateZ(29px); }
+.ambient3d__cube-face--top { transform: rotateX(90deg) translateZ(29px); }
+.ambient3d__cube-face--bottom { transform: rotateX(-90deg) translateZ(29px); }
+
+.ambient3d__float--orb {
+  left: 8%;
+  bottom: 14%;
+  width: 84px;
+  height: 84px;
+  animation: ambient-float-b 11s ease-in-out infinite;
+}
+.ambient3d__orb {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 31% 25%, #fff 0 4%, #e8efff 12%, #8fa1ff 35%, #4256f4 70%, #2737a6 100%);
+  box-shadow: inset -9px -10px 17px rgba(16,24,45,.2), inset 7px 7px 15px rgba(255,255,255,.7), 0 13px 28px rgba(66,86,244,.18);
+  animation: ambient-orb-roll 13s ease-in-out infinite;
+}
+.ambient3d__orb span {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  top: 10px;
+  left: 13px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.8);
+  filter: blur(2px);
+}
+
+.ambient3d__float--ring {
+  top: 24%;
+  right: 6.5%;
+  width: 112px;
+  height: 112px;
+  animation: ambient-float-c 10s ease-in-out infinite;
+}
+.ambient3d__ring {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border: 7px solid rgba(66,86,244,.19);
+  border-top-color: rgba(66,86,244,.68);
+  border-right-color: rgba(196,241,92,.85);
+  border-radius: 50%;
+  transform: rotateX(66deg) rotateY(-18deg);
+  transform-style: preserve-3d;
+  box-shadow: 0 0 0 7px rgba(66,86,244,.035), inset 0 0 12px rgba(66,86,244,.12);
+  animation: ambient-ring-spin 18s linear infinite;
+}
+.ambient3d__ring span,
+.ambient3d__ring i {
+  position: absolute;
+  inset: 7px;
+  border: 2px solid rgba(196,241,92,.48);
+  border-radius: 50%;
+  transform: translateZ(10px) rotateX(28deg);
+}
+.ambient3d__ring i {
+  inset: -12px;
+  border-color: rgba(66,86,244,.13);
+  transform: translateZ(-8px) rotateY(58deg);
+}
+
+.ambient3d__float--diamond {
+  right: 13%;
+  bottom: 13%;
+  width: 76px;
+  height: 76px;
+  animation: ambient-float-d 8.5s ease-in-out infinite;
+}
+.ambient3d__diamond {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  background: linear-gradient(135deg, rgba(196,241,92,.95), rgba(66,86,244,.72));
+  transform-style: preserve-3d;
+  filter: drop-shadow(0 12px 12px rgba(66,86,244,.18));
+  animation: ambient-diamond-spin 16s ease-in-out infinite;
+}
+.ambient3d__diamond span {
+  position: absolute;
+  inset: 8px 15px;
+  background: rgba(255,255,255,.62);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  transform: translateZ(12px);
+}
+
+.ambient3d__float--stack {
+  top: 57%;
+  right: 37%;
+  width: 100px;
+  height: 90px;
+  animation: ambient-float-b 12s ease-in-out infinite reverse;
+}
+.ambient3d__stack {
+  position: relative;
+  width: 76px;
+  height: 58px;
+  transform: rotateX(58deg) rotateZ(-25deg);
+  transform-style: preserve-3d;
+}
+.ambient3d__stack i {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(66,86,244,.28);
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(255,255,255,.88), rgba(66,86,244,.09));
+  box-shadow: 0 7px 18px rgba(23,30,55,.08);
+}
+.ambient3d__stack i:nth-child(1) { transform: translateZ(18px) translate(-5px,-5px); }
+.ambient3d__stack i:nth-child(2) { transform: translateZ(9px) translate(-2px,-2px); }
+.ambient3d__stack i:nth-child(3) { transform: translateZ(0); }
+
+.ambient3d__float--mini-orb {
+  top: 9%;
+  right: 29%;
+  width: 30px;
+  height: 30px;
+  animation: ambient-float-c 7s ease-in-out infinite reverse;
+}
+.ambient3d__mini-orb {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 25%, #fff, #c4f15c 42%, #8eaf35 100%);
+  box-shadow: 0 7px 18px rgba(169,217,57,.25);
+}
+
+@keyframes ambient-float-a { 0%,100% { transform: translate3d(0,0,0) rotateZ(-5deg); } 50% { transform: translate3d(0,-18px,18px) rotateZ(5deg); } }
+@keyframes ambient-float-b { 0%,100% { transform: translate3d(0,0,0) rotateY(-8deg); } 50% { transform: translate3d(0,14px,22px) rotateY(12deg); } }
+@keyframes ambient-float-c { 0%,100% { transform: translate3d(0,0,0) rotateZ(4deg); } 50% { transform: translate3d(0,-12px,14px) rotateZ(-5deg); } }
+@keyframes ambient-float-d { 0%,100% { transform: translate3d(0,0,0) rotateY(0); } 50% { transform: translate3d(0,-16px,12px) rotateY(30deg); } }
+@keyframes ambient-cube-spin { from { transform: rotateX(-24deg) rotateY(0deg); } to { transform: rotateX(336deg) rotateY(360deg); } }
+@keyframes ambient-orb-roll { 0%,100% { transform: rotateY(0) rotateX(0) scale(1); } 50% { transform: rotateY(180deg) rotateX(16deg) scale(1.06); } }
+@keyframes ambient-ring-spin { from { transform: rotateX(66deg) rotateY(-18deg) rotateZ(0); } to { transform: rotateX(66deg) rotateY(-18deg) rotateZ(360deg); } }
+@keyframes ambient-diamond-spin { 0%,100% { transform: rotateY(0) rotateX(0); } 50% { transform: rotateY(180deg) rotateX(24deg); } }
+@keyframes ambient-orbit-drift { from { translate: 0 -12px; } to { translate: 18px 18px; } }
+
+/* Smooth route-to-top movement and in-page anchor alignment. */
+html { scroll-behavior: smooth; }
+#main-content, [id] { scroll-margin-top: 92px; }
+
+@media (max-width: 820px) {
+  .ambient3d { opacity: .56; }
+  .ambient3d__float--cube { left: 1.5%; top: 13%; scale: .76; }
+  .ambient3d__float--orb { left: 2%; bottom: 11%; scale: .78; }
+  .ambient3d__float--ring { right: 1%; top: 29%; scale: .78; }
+  .ambient3d__float--diamond { right: 5%; bottom: 11%; scale: .78; }
+  .ambient3d__float--stack { display: none; }
+  .ambient3d__float--mini-orb { right: 18%; top: 7%; }
+}
+@media (max-width: 480px) {
+  .ambient3d { opacity: .4; }
+  .ambient3d__orbit--one { left: -62vw; width: 76vw; }
+  .ambient3d__orbit--two { right: -65vw; width: 72vw; }
+  .ambient3d__float--cube { top: 17%; left: -7px; scale: .58; }
+  .ambient3d__float--orb { left: -10px; bottom: 9%; scale: .6; }
+  .ambient3d__float--ring { right: -13px; top: 34%; scale: .6; }
+  .ambient3d__float--diamond { right: 1%; bottom: 8%; scale: .6; }
+  .ambient3d__float--mini-orb { right: 15%; top: 6%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient3d *, .ambient3d *::before, .ambient3d *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .ambient3d__cube { transform: rotateX(-18deg) rotateY(24deg); }
+  .ambient3d__ring { transform: rotateX(66deg) rotateY(-18deg); }
+  html { scroll-behavior: auto !important; }
+}
+
+/* Add restrained depth to prominent cards and the homepage product mock-up. */
+.marketing-hero-visual { perspective: 1400px; }
+.marketing-window {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+.marketing-window-top,
+.marketing-window-welcome,
+.marketing-window-search,
+.marketing-window-cards > div,
+.marketing-window-foot { transform: translateZ(7px); }
+.marketing-floating-note { transform-style: preserve-3d; }
+.marketing-floating-note > span { transform: translateZ(15px); }
+.marketing-benefit-card,
+.marketing-audience-grid > article,
+.marketing-values-grid > article,
+.marketing-contact-card,
+.workspace-widget,
+.course-card {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+.marketing-benefit-icon,
+.marketing-audience-icon,
+.marketing-contact-card > span,
+.workspace-widget .widget-symbol,
+.course-card .course-icon,
+.marketing-contact-card .marketing-contact-icon { transform: translateZ(10px); }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .marketing-benefit-card,
+  .marketing-audience-grid > article,
+  .marketing-values-grid > article,
+  .marketing-contact-card,
+  .workspace-widget,
+  .course-card {
+    transition: transform .34s cubic-bezier(.2,.7,.2,1), box-shadow .34s ease;
+  }
+  .marketing-benefit-card:hover,
+  .marketing-audience-grid > article:hover,
+  .marketing-values-grid > article:hover,
+  .marketing-contact-card:hover,
+  .workspace-widget:hover,
+  .course-card:hover {
+    transform: perspective(1000px) rotateX(1.3deg) rotateY(-1.3deg) translate3d(0,-5px,8px);
+    box-shadow: 0 22px 48px rgba(23,30,55,.12);
+  }
+}
+@keyframes window-float {
+  0%, 100% { transform: perspective(1100px) translateY(0) rotateX(3deg) rotateY(-5deg) rotateZ(1.3deg); }
+  50% { transform: perspective(1100px) translateY(-8px) rotateX(1deg) rotateY(-2deg) rotateZ(.7deg); }
+}

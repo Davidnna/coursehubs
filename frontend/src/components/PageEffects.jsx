@@ -5,11 +5,29 @@ import { useLocation } from 'react-router-dom';
 export function PageEffects() {
   const location = useLocation();
 
+  useEffect(() => {
+    const previousRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+    return () => { window.history.scrollRestoration = previousRestoration; };
+  }, []);
+
   useLayoutEffect(() => {
-    if (!location.hash) window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const behavior = reduceMotion ? 'auto' : 'smooth';
+
+    if (location.hash) {
+      let targetId = location.hash.slice(1);
+      try { targetId = decodeURIComponent(targetId); } catch { /* Keep the literal hash when it is malformed. */ }
+      const target = document.getElementById(targetId);
+      if (target) target.scrollIntoView({ behavior, block: 'start' });
+      else window.scrollTo({ top: 0, left: 0, behavior });
+    } else {
+      window.scrollTo({ top: 0, left: 0, behavior });
+    }
+
     const mainContent = document.getElementById('main-content');
     if (mainContent) mainContent.focus({ preventScroll: true });
-  }, [location.pathname]);
+  }, [location.key, location.hash]);
 
   useEffect(() => {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

@@ -28,15 +28,31 @@ export default function PublicLayout() {
 
   useEffect(() => { setMenuOpen(false); }, [location.pathname]);
 
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (event) => { if (event.key === 'Escape') setMenuOpen(false); };
+    const closeOnDesktop = () => { if (window.innerWidth > 820) setMenuOpen(false); };
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', closeOnDesktop);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', closeOnDesktop);
+    };
+  }, [menuOpen]);
+
   return (
     <div className="marketing-shell">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <header className="marketing-header">
         <div className="marketing-header-inner">
           <PublicBrand/>
-          <button className="marketing-menu-toggle" type="button" aria-label={menuOpen ? 'Close menu' : 'Open menu'} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
+          <button className="marketing-menu-toggle" type="button" aria-label={menuOpen ? 'Close menu' : 'Open menu'} aria-expanded={menuOpen} aria-controls="public-navigation" onClick={() => setMenuOpen((open) => !open)}>
             <Icon name={menuOpen ? 'x' : 'menu'} size={22}/>
           </button>
-          <nav className={`marketing-nav ${menuOpen ? 'marketing-nav-open' : ''}`} aria-label="Main navigation">
+          <nav id="public-navigation" className={`marketing-nav ${menuOpen ? 'marketing-nav-open' : ''}`} aria-label="Main navigation">
             {links.map((link) => <NavLink key={link.to} to={link.to} end={link.end} className={({ isActive }) => `marketing-nav-link ${isActive ? 'marketing-nav-link-active' : ''}`}>{link.label}</NavLink>)}
             <div className="marketing-mobile-actions">
               {!loading && user ? <Link className="btn btn-primary" to="/dashboard">Open workspace <Icon name="arrowUpRight" size={17}/></Link> : !loading ? <><Link className="marketing-mobile-signin" to="/login">Sign in</Link><Link className="btn btn-primary" to="/register">Get started <Icon name="arrowUpRight" size={17}/></Link></> : null}
@@ -48,7 +64,7 @@ export default function PublicLayout() {
         </div>
       </header>
 
-      <div className="marketing-content"><Outlet/></div>
+      <div className="marketing-content" id="main-content" tabIndex="-1" role="region" aria-label="Main page content"><Outlet/></div>
 
       <footer className="marketing-footer">
         <div className="marketing-footer-main">

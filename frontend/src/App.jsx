@@ -20,10 +20,13 @@ import ResendVerification from './pages/ResendVerification';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import NotFound from './pages/NotFound';
+import { PageEffects, ScrollToTopButton } from './components/PageEffects';
 
 export default function App() {
   return (
     <BrowserRouter>
+      <PageEffects/>
+      <ScrollToTopButton/>
       <AuthProvider>
         <Routes>
           {/* Public marketing website and account-entry pages. */}

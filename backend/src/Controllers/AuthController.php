@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 final class AuthController
 {
-    private const GENERIC_RESEND_MESSAGE = 'If an eligible account exists and email delivery is configured, a verification link will be sent shortly.';
-    private const GENERIC_RESET_MESSAGE = 'If an eligible account exists and email delivery is configured, password-reset instructions will be sent shortly.';
+    private const GENERIC_RESEND_MESSAGE = 'If an eligible account exists, a verification link may arrive shortly. Please check your inbox and spam folder.';
+    private const GENERIC_RESET_MESSAGE = 'If an eligible account exists, password-reset instructions may arrive shortly. Please check your inbox and spam folder.';
 
     public static function register(): void
     {

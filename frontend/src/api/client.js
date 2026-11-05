@@ -1,6 +1,79 @@
 const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
 const TOKEN_KEY = 'coursehubs_token';
 
+const ERROR_MESSAGES = {
+  INVALID_CREDENTIALS: 'The email address or password is incorrect.',
+  ACCOUNT_TEMPORARILY_LOCKED: 'Too many unsuccessful attempts. Please try again later.',
+  EMAIL_NOT_VERIFIED: 'Verify your email address before signing in.',
+  ACCOUNT_SUSPENDED: 'This account is currently unavailable. Please contact CourseHubs support.',
+  UNAUTHENTICATED: 'Please sign in to continue.',
+  INVALID_TOKEN: 'Your session has expired. Please sign in again.',
+  SESSION_INVALID: 'Your session is no longer valid. Please sign in again.',
+  INVALID_VERIFICATION_TOKEN: 'This verification link is invalid or has already been used.',
+  VERIFICATION_EXPIRED: 'This verification link has expired. Request a new one.',
+  RESET_TOKEN_EXPIRED: 'This password-reset link is invalid or has expired. Request a new one.',
+};
+
+const STATUS_MESSAGES = {
+  400: 'We could not process that request. Please check the information and try again.',
+  401: 'Please sign in again to continue.',
+  403: 'You do not have permission to complete this action.',
+  404: 'We could not find what you were looking for.',
+  409: 'We could not complete that request because the information conflicts with an existing record.',
+  410: 'This link has expired or is no longer valid. Request a new one to continue.',
+  422: 'Please review the highlighted information and try again.',
+  429: 'Too many requests. Please wait a moment and try again.',
+};
+
+const FIELD_FALLBACKS = {
+  first_name: 'Enter your first name.',
+  surname: 'Enter your surname.',
+  email: 'Enter a valid email address.',
+  phone: 'Enter a valid phone number.',
+  password: 'Enter a password that meets the requirements.',
+  account_type: 'Choose a valid account type.',
+  reg_no: 'Enter your student registration number.',
+  level: 'Choose a valid academic level.',
+  expected_graduation_session_id: 'Choose an expected graduation session.',
+  staff_no: 'Enter your staff number.',
+  token: 'This link is invalid or has expired. Request a new one.',
+};
+
+const KNOWN_FIELD_MESSAGES = {
+  first_name: ['First name is required.'],
+  surname: ['Surname is required.'],
+  email: ['Email is required.', 'Enter a valid email address.', 'An account with this email already exists.'],
+  phone: ['Phone number is required.'],
+  password: ['Password is required.', 'Password must be at least 8 characters.', 'Password must not exceed 72 bytes.'],
+  account_type: ['Account type is required.', 'Account type must be one of: student, staff.'],
+  reg_no: ['Registration number is required.', 'An account with this registration number already exists.'],
+  level: ['Level is required.', 'Level must be a level between 100 and 500, in steps of 100.'],
+  expected_graduation_session_id: ['Expected graduation session is required.'],
+  staff_no: ['Staff number is required.', 'An account with this staff number already exists.'],
+  token: ['This password-reset link is invalid.'],
+};
+
+function safeFieldErrors(fields) {
+  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return undefined;
+  const safe = {};
+  for (const [field, message] of Object.entries(fields)) {
+    if (!(field in FIELD_FALLBACKS)) continue;
+    const allowed = KNOWN_FIELD_MESSAGES[field] || [];
+    safe[field] = typeof message === 'string' && allowed.includes(message)
+      ? message
+      : FIELD_FALLBACKS[field];
+  }
+  return Object.keys(safe).length ? safe : undefined;
+}
+
+function safeErrorMessage(data, status, fields) {
+  const code = typeof data?.code === 'string' ? data.code : '';
+  if (code && ERROR_MESSAGES[code]) return ERROR_MESSAGES[code];
+  if (status >= 500) return 'Something went wrong on our end. Please try again shortly.';
+  if (status === 422 && fields) return 'Please review the highlighted information and try again.';
+  return STATUS_MESSAGES[status] || 'We could not complete your request. Please try again.';
+}
+
 export function setAuthToken(token) {
   if (token) sessionStorage.setItem(TOKEN_KEY, token);
   else sessionStorage.removeItem(TOKEN_KEY);
@@ -27,17 +100,22 @@ async function request(path, options = {}) {
   try {
     response = await fetch(`${BASE_URL}${path}`, { ...options, headers });
   } catch {
-    throw new Error('Unable to reach CourseHubs. Check your connection and try again.');
+    throw new Error('We could not connect to CourseHubs. Check your internet connection and try again.');
   }
 
   if (response.status === 204) return null;
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    const error = new Error(data?.error || `Request failed (${response.status})`);
+    const fields = safeFieldErrors(data?.fields);
+    const code = typeof data?.code === 'string' && Object.hasOwn(ERROR_MESSAGES, data.code)
+      ? data.code
+      : undefined;
+    const error = new Error(safeErrorMessage(data, response.status, fields));
     error.status = response.status;
-    error.code = data?.code;
-    if (data?.fields) error.fields = data.fields;
+    if (code) error.code = code;
+    if (fields) error.fields = fields;
+    if (code === 'EMAIL_NOT_VERIFIED' && typeof data?.email === 'string') error.email = data.email;
     if (response.status === 401 && token) {
       clearAuthToken();
       window.dispatchEvent(new Event('coursehubs:auth-expired'));

@@ -112,6 +112,6 @@ Vite prints the local frontend address, normally `http://localhost:5173`.
 
 ## Database migration behaviour
 
-Database structure is managed by versioned SQL files in `backend/database/migrations/`. Use four-digit filenames such as `0004_add_course_reviews.sql`. The backend migration runner records each applied migration and its SHA-256 checksum. It validates the full migration list before applying changes, applies pending migrations in order, serialises concurrent startup attempts with a PostgreSQL advisory lock, and stops deployment if a migration fails. It also recognises the two legacy migration filenames from earlier CourseHubs releases and maps them to their canonical four-digit migrations during this transition. Applied migration files must not be edited; add a new numbered migration for every subsequent database change.
+Database structure is managed by versioned SQL files in `backend/database/migrations/`. The backend migration runner records each applied migration and its SHA-256 checksum. It applies pending migrations in order, serialises concurrent startup attempts with a PostgreSQL advisory lock, and stops deployment if a migration fails. Applied migration files must not be edited; add a new numbered migration for every subsequent database change.
 
 Render's Docker startup runs migrations before Apache starts. Local development uses the same migration runner through `backend/bin/dev-server.php`. A fresh database is initialised automatically; do not manually execute schema SQL in the database console.

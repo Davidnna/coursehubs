@@ -16,4 +16,4 @@ WORKDIR /var/www/html
 COPY . .
 
 EXPOSE 10000
-CMD ["apache2-foreground"]
+CMD ["sh", "-c", "php bin/migrate.php && exec apache2-foreground"]

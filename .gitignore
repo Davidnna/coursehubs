@@ -1,24 +1,26 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# secrets / local config
+backend/.env
+frontend/.env
+*.env.local
 
-node_modules
-dist
-dist-ssr
-*.local
+# dependencies and build output
+node_modules/
+frontend/dist/
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# OS / editor
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+Thumbs.db
+.idea/
+.vscode/
+
+# Extra credentials and sensitive student documents
+.env
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+*service-account*.json
+
+# Private reference material should not be published as code
+reference_documents/

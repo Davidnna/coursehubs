@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { clearAuthToken, getCurrentUser, hasAuthToken, login as loginRequest, logout as logoutRequest, setAuthToken } from '../api/client';
+import { clearAuthToken, exchangeGoogleCode, getCurrentUser, hasAuthToken, login as loginRequest, logout as logoutRequest, setAuthToken } from '../api/client';
 
 const AuthContext = createContext(null);
 
@@ -40,6 +40,22 @@ export function AuthProvider({ children }) {
     return result;
   }, []);
 
+  const signInWithGoogleCode = useCallback(async (code) => {
+    const result = await exchangeGoogleCode(code);
+    setAuthToken(result.token);
+    setUser(result.user);
+    return result;
+  }, []);
+
+  const updateUser = useCallback((nextUser) => {
+    setUser((current) => ({ ...(current || {}), ...(nextUser || {}) }));
+  }, []);
+
+  const replaceSession = useCallback((token, nextUser) => {
+    setAuthToken(token);
+    setUser(nextUser);
+  }, []);
+
   const signOut = useCallback(async () => {
     try {
       if (hasAuthToken()) await logoutRequest();
@@ -49,7 +65,7 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const value = useMemo(() => ({ user, loading, signIn, signOut, refreshUser }), [user, loading, signIn, signOut, refreshUser]);
+  const value = useMemo(() => ({ user, loading, signIn, signInWithGoogleCode, signOut, refreshUser, updateUser, replaceSession }), [user, loading, signIn, signInWithGoogleCode, signOut, refreshUser, updateUser, replaceSession]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

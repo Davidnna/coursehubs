@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import Icon from '../components/Icon';
 import { getAcademicSessions, register } from '../api/client';
 
@@ -11,6 +11,7 @@ function Field({ id, label, error, hint, children, ...props }) {
 }
 
 export default function Register() {
+  const [searchParams] = useSearchParams();
   const [accountType, setAccountType] = useState('student');
   const [form, setForm] = useState(initialForm);
   const [sessions, setSessions] = useState([]);
@@ -20,6 +21,14 @@ export default function Register() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(null);
   const [passwordShown, setPasswordShown] = useState(false);
+
+  useEffect(() => {
+    const googleEmail = searchParams.get('email');
+    if (searchParams.get('google') === 'account_not_found' && googleEmail) {
+      setForm((current) => ({ ...current, email: googleEmail }));
+      setFormError('Create your CourseHubs account with this Google email address first. You can then use Google to sign in.');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     let active = true;

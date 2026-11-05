@@ -8,16 +8,24 @@ const workspaceNav = [
   { to: '/dashboard', label: 'Overview', icon: 'grid', end: true },
   { to: '/catalog', label: 'Course library', icon: 'book' },
   { to: '/upload', label: 'Contribute resources', icon: 'upload' },
+  { to: '/account', label: 'Account settings', icon: 'user' },
 ];
 
 function WorkspaceBrand() {
   return <Link to="/dashboard" className="brand" aria-label="CourseHubs workspace"><span className="brand-mark"><span className="mark-dot"/><span className="mark-line mark-line-one"/><span className="mark-line mark-line-two"/><span className="mark-line mark-line-three"/></span><span className="brand-wordmark">course<span>hubs</span><small>YOUR ACADEMIC WORKSPACE</small></span></Link>;
 }
 
+function UserAvatar({ user, className = '' }) {
+  return <span className={`topbar-avatar ${className}`}>{user?.profile_picture_data ? <img src={user.profile_picture_data} alt=""/> : (user?.first_name?.[0] || 'U').toUpperCase()}</span>;
+}
+
 export default function WorkspaceLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const menuButtonRef = useRef(null);
   const sidebarRef = useRef(null);
+  const accountMenuRef = useRef(null);
+  const accountTriggerRef = useRef(null);
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
 
@@ -54,12 +62,34 @@ export default function WorkspaceLayout() {
     if (menuOpen) sidebarRef.current?.querySelector('a[href], button:not([disabled])')?.focus();
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!accountMenuOpen) return undefined;
+    const closeOutside = (event) => {
+      if (!accountMenuRef.current?.contains(event.target)) setAccountMenuOpen(false);
+    };
+    const closeEscape = (event) => {
+      if (event.key === 'Escape') {
+        setAccountMenuOpen(false);
+        accountTriggerRef.current?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeEscape);
+    };
+  }, [accountMenuOpen]);
+
   async function handleSignOut() {
-    try { await signOut(); } catch { /* The local session is cleared by signOut. */ } finally {
+    try { await signOut(); } catch { /* Local credentials are cleared by signOut. */ } finally {
+      setAccountMenuOpen(false);
       setMenuOpen(false);
       navigate('/', { replace: true });
     }
   }
+
+  const fullName = `${user?.first_name || ''} ${user?.surname || ''}`.trim();
 
   return (
     <div className="app-shell workspace-shell">
@@ -68,19 +98,35 @@ export default function WorkspaceLayout() {
       <aside ref={sidebarRef} id="workspace-sidebar" className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`} aria-label="Workspace navigation">
         <div className="sidebar-top"><WorkspaceBrand/><button className="icon-button sidebar-close" aria-label="Close menu" onClick={() => { setMenuOpen(false); menuButtonRef.current?.focus(); }}><Icon name="x"/></button></div>
         <div className="sidebar-section-label">YOUR WORKSPACE</div>
-        <nav className="sidebar-nav">{workspaceNav.map((item) => <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMenuOpen(false)} className={({ isActive }) => `side-link ${isActive ? 'side-link-active' : ''}`}><Icon name={item.icon} size={19}/><span>{item.label}</span></NavLink>)}</nav>
+        <nav className="sidebar-nav" aria-label="Workspace pages">{workspaceNav.map((item) => <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMenuOpen(false)} className={({ isActive }) => `side-link ${isActive ? 'side-link-active' : ''}`}><Icon name={item.icon} size={19}/><span>{item.label}</span></NavLink>)}</nav>
         <div className="sidebar-grow"/>
-        <div className="sidebar-note"><div className="sidebar-note-icon"><Icon name="spark" size={20}/></div><strong>Your learning space, organised.</strong><p>Explore the CourseHubs website or return to your workspace whenever you need it.</p><Link to="/" onClick={() => setMenuOpen(false)}>Visit public website <Icon name="arrowRight" size={15}/></Link></div>
+        <Link to="/account" className="sidebar-profile-card" onClick={() => setMenuOpen(false)}>
+          <UserAvatar user={user} className="sidebar-profile-avatar"/>
+          <span className="sidebar-profile-copy"><strong>{fullName || 'Your account'}</strong><small>Manage your profile</small></span>
+          <Icon name="chevronRight" size={17}/>
+        </Link>
         <div className="sidebar-bottom"><span className="sidebar-dot"/> EBONYI STATE UNIVERSITY <span className="sidebar-bottom-small">/ CS</span></div>
       </aside>
       {menuOpen && <button type="button" className="mobile-overlay" aria-label="Close navigation" onClick={() => { setMenuOpen(false); menuButtonRef.current?.focus(); }}/>}
       <div className="main-column">
         <header className="topbar workspace-topbar">
           <div className="topbar-left"><button ref={menuButtonRef} className="icon-button mobile-menu" aria-label="Open workspace menu" aria-expanded={menuOpen} aria-controls="workspace-sidebar" onClick={() => setMenuOpen(true)}><Icon name="menu"/></button><span className="topbar-context"><span className="context-dot"/> PRIVATE COURSEHUBS WORKSPACE</span></div>
-          <div className="topbar-actions"><Link to="/" className="workspace-public-link"><Icon name="external" size={15}/> <span>Public website</span></Link><Link to="/dashboard" className="topbar-user"><span className="topbar-avatar">{user?.first_name?.[0] || 'U'}</span><span>{user?.first_name || 'Account'}</span></Link><button type="button" className="topbar-signout" onClick={handleSignOut}>Sign out</button></div>
+          <div className="topbar-actions">
+            <div className="workspace-account-menu" ref={accountMenuRef}>
+              <button ref={accountTriggerRef} type="button" className="workspace-account-trigger" aria-haspopup="true" aria-expanded={accountMenuOpen} aria-controls="workspace-account-dropdown" onClick={() => setAccountMenuOpen((open) => !open)}>
+                <UserAvatar user={user}/><span className="workspace-account-name">{user?.first_name || 'Account'}</span><Icon name="chevronDown" size={15}/>
+              </button>
+              {accountMenuOpen && <div id="workspace-account-dropdown" className="workspace-account-dropdown" aria-label="Account actions">
+                <div className="workspace-account-dropdown-head"><strong>{fullName || 'CourseHubs member'}</strong><span>{user?.email}</span></div>
+                <Link to="/account" onClick={() => setAccountMenuOpen(false)}><Icon name="user" size={17}/> Account settings</Link>
+                <Link to="/" onClick={() => setAccountMenuOpen(false)}><Icon name="external" size={17}/> Visit CourseHubs website</Link>
+                <button type="button" onClick={handleSignOut}><Icon name="arrowRight" size={17}/> Sign out</button>
+              </div>}
+            </div>
+          </div>
         </header>
         <div className="page-content" id="main-content" tabIndex="-1" role="region" aria-label="Workspace page content"><Outlet/></div>
-        <footer className="site-footer"><span>© {new Date().getFullYear()} CourseHubs · Private academic workspace</span><span><Link to="/">Public website</Link> · <Link to="/contact">Help & contact</Link></span></footer>
+        <footer className="site-footer"><span>© {new Date().getFullYear()} CourseHubs · Private academic workspace</span><span><Link to="/account">Account settings</Link> · <Link to="/contact">Help & contact</Link></span></footer>
       </div>
     </div>
   );

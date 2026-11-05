@@ -245,7 +245,7 @@ final class AuthController
 
         $db = Database::connection();
         $stmt = $db->prepare(
-            'SELECT id, first_name, surname, middle_name, email, password_hash, account_type, level,
+            'SELECT id, first_name, surname, middle_name, email, password_hash, profile_picture_data, account_type, level,
                     CASE WHEN is_admin IS TRUE THEN 1 ELSE 0 END AS is_admin,
                     CASE WHEN is_super_admin IS TRUE THEN 1 ELSE 0 END AS is_super_admin,
                     CASE WHEN is_verified IS TRUE THEN 1 ELSE 0 END AS is_verified, status, failed_login_attempts,
@@ -310,7 +310,11 @@ final class AuthController
 
     public static function me(): void
     {
-        Response::json(['user' => self::publicUser(Auth::requireUser())]);
+        $user = Auth::requireUser();
+        $avatar = Database::connection()->prepare('SELECT profile_picture_data FROM users WHERE id = ? LIMIT 1');
+        $avatar->execute([(int) $user['id']]);
+        $user['profile_picture_data'] = $avatar->fetchColumn() ?: null;
+        Response::json(['user' => self::publicUser($user)]);
     }
 
     public static function logout(): void
@@ -457,6 +461,7 @@ final class AuthController
             'is_admin' => (int) $user['is_admin'] === 1,
             'is_super_admin' => (int) $user['is_super_admin'] === 1,
             'is_verified' => (int) $user['is_verified'] === 1,
+            'profile_picture_data' => $user['profile_picture_data'] ?? null,
         ];
     }
 }

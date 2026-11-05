@@ -57,6 +57,8 @@ require __DIR__ . '/../src/Support/Mailer.php';
 require __DIR__ . '/../src/Security/Jwt.php';
 require __DIR__ . '/../src/Security/Auth.php';
 require __DIR__ . '/../src/Controllers/AuthController.php';
+require __DIR__ . '/../src/Controllers/AccountController.php';
+require __DIR__ . '/../src/Controllers/GoogleAuthController.php';
 require __DIR__ . '/../src/Controllers/AcademicSessionController.php';
 
 Config::load(__DIR__ . '/../.env');

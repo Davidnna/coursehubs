@@ -20,6 +20,9 @@ import ResendVerification from './pages/ResendVerification';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import NotFound from './pages/NotFound';
+import Account from './pages/Account';
+import VerifyEmailChange from './pages/VerifyEmailChange';
+import GoogleCallback from './pages/GoogleCallback';
 import { PageEffects, ScrollToTopButton } from './components/PageEffects';
 
 export default function App() {
@@ -45,6 +48,8 @@ export default function App() {
             <Route path="resend-verification" element={<ResendVerification/>}/>
             <Route path="forgot-password" element={<ForgotPassword/>}/>
             <Route path="reset-password" element={<ResetPassword/>}/>
+            <Route path="verify-email-change" element={<VerifyEmailChange/>}/>
+            <Route path="auth/google/callback" element={<GoogleCallback/>}/>
             <Route path="*" element={<NotFound/>}/>
           </Route>
 
@@ -55,6 +60,7 @@ export default function App() {
               <Route path="catalog" element={<Catalog/>}/>
               <Route path="courses/:id" element={<CourseDetail/>}/>
               <Route path="upload" element={<Upload/>}/>
+              <Route path="account" element={<Account/>}/>
             </Route>
           </Route>
         </Routes>

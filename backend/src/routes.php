@@ -24,3 +24,17 @@ $router->get('/auth/me', [AuthController::class, 'me']);
 $router->post('/auth/logout', [AuthController::class, 'logout']);
 $router->post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
 $router->post('/auth/reset-password', [AuthController::class, 'resetPassword']);
+
+
+// Google OAuth uses a server-side authorization-code flow and a one-time code exchange.
+$router->get('/auth/google', [GoogleAuthController::class, 'start']);
+$router->get('/auth/google/callback', [GoogleAuthController::class, 'callback']);
+$router->post('/auth/google/exchange', [GoogleAuthController::class, 'exchange']);
+
+// Signed-in account management.
+$router->get('/account', [AccountController::class, 'show']);
+$router->patch('/account/profile', [AccountController::class, 'updateProfile']);
+$router->post('/account/email-change', [AccountController::class, 'requestEmailChange']);
+$router->get('/account/verify-email-change', [AccountController::class, 'verifyEmailChange']);
+$router->post('/account/password', [AccountController::class, 'changePassword']);
+$router->delete('/account', [AccountController::class, 'deleteAccount']);

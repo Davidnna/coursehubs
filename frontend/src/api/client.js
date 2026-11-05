@@ -3,6 +3,7 @@ const TOKEN_KEY = 'coursehubs_token';
 
 const ERROR_MESSAGES = {
   INVALID_CREDENTIALS: 'The email address or password is incorrect.',
+  CURRENT_PASSWORD_INVALID: 'Your current password is incorrect.',
   ACCOUNT_TEMPORARILY_LOCKED: 'Too many unsuccessful attempts. Please try again later.',
   EMAIL_NOT_VERIFIED: 'Verify your email address before signing in.',
   ACCOUNT_SUSPENDED: 'This account is currently unavailable. Please contact CourseHubs support.',
@@ -19,6 +20,7 @@ const STATUS_MESSAGES = {
   401: 'Please sign in again to continue.',
   403: 'You do not have permission to complete this action.',
   404: 'We could not find what you were looking for.',
+  503: 'This service is temporarily unavailable. Please try again shortly.',
   409: 'We could not complete that request because the information conflicts with an existing record.',
   410: 'This link has expired or is no longer valid. Request a new one to continue.',
   422: 'Please review the highlighted information and try again.',
@@ -28,29 +30,41 @@ const STATUS_MESSAGES = {
 const FIELD_FALLBACKS = {
   first_name: 'Enter your first name.',
   surname: 'Enter your surname.',
+  middle_name: 'Check your middle name.',
   email: 'Enter a valid email address.',
+  new_email: 'Enter a valid new email address.',
   phone: 'Enter a valid phone number.',
   password: 'Enter a password that meets the requirements.',
+  new_password: 'Choose a password that meets the requirements.',
+  confirm_password: 'Confirm your new password.',
   account_type: 'Choose a valid account type.',
   reg_no: 'Enter your student registration number.',
   level: 'Choose a valid academic level.',
   expected_graduation_session_id: 'Choose an expected graduation session.',
   staff_no: 'Enter your staff number.',
   token: 'This link is invalid or has expired. Request a new one.',
+  confirmation: 'Type DELETE to confirm.',
+  profile_picture_data: 'Choose a valid profile photo.',
 };
 
 const KNOWN_FIELD_MESSAGES = {
-  first_name: ['First name is required.'],
-  surname: ['Surname is required.'],
+  first_name: ['First name is required.', 'Enter a first name of no more than 80 characters.'],
+  surname: ['Surname is required.', 'Enter a surname of no more than 80 characters.'],
+  middle_name: ['Middle name must be no more than 80 characters.'],
   email: ['Email is required.', 'Enter a valid email address.', 'An account with this email already exists.'],
-  phone: ['Phone number is required.'],
+  new_email: ['Enter a valid email address.', 'Choose a different email address.', 'That email address is already in use.'],
+  phone: ['Phone number is required.', 'Enter a valid phone number.'],
   password: ['Password is required.', 'Password must be at least 8 characters.', 'Password must not exceed 72 bytes.'],
+  new_password: ['Use between 8 and 72 characters.'],
+  confirm_password: ['The passwords do not match.'],
   account_type: ['Account type is required.', 'Account type must be one of: student, staff.'],
   reg_no: ['Registration number is required.', 'An account with this registration number already exists.'],
   level: ['Level is required.', 'Level must be a level between 100 and 500, in steps of 100.'],
   expected_graduation_session_id: ['Expected graduation session is required.'],
   staff_no: ['Staff number is required.', 'An account with this staff number already exists.'],
   token: ['This password-reset link is invalid.'],
+  confirmation: ['Type DELETE to confirm.'],
+  profile_picture_data: ['Choose a valid JPG, PNG or WebP image.', 'Your profile photo must be smaller than 400 KB after processing.', 'The selected file is not a supported image.'],
 };
 
 function safeFieldErrors(fields) {
@@ -130,7 +144,7 @@ export const api = {
   get: (path) => request(path, { method: 'GET' }),
   post: (path, body) => request(path, { method: 'POST', body: JSON.stringify(body ?? {}) }),
   patch: (path, body) => request(path, { method: 'PATCH', body: JSON.stringify(body ?? {}) }),
-  del: (path) => request(path, { method: 'DELETE' }),
+  del: (path, body) => request(path, { method: 'DELETE', ...(body ? { body: JSON.stringify(body) } : {}) }),
 };
 
 export function checkHealth() { return api.get('/health'); }
@@ -143,3 +157,12 @@ export function getCurrentUser() { return api.get('/auth/me'); }
 export function logout() { return api.post('/auth/logout', {}); }
 export function requestPasswordReset(email) { return api.post('/auth/forgot-password', { email }); }
 export function resetPassword(payload) { return api.post('/auth/reset-password', payload); }
+
+export function getAccount() { return api.get('/account'); }
+export function updateAccountProfile(payload) { return api.patch('/account/profile', payload); }
+export function requestEmailChange(payload) { return api.post('/account/email-change', payload); }
+export function verifyEmailChange(token) { return api.get(`/account/verify-email-change?token=${encodeURIComponent(token)}`); }
+export function changeAccountPassword(payload) { return api.post('/account/password', payload); }
+export function deleteAccount(payload) { return api.del('/account', payload); }
+export function exchangeGoogleCode(code) { return api.post('/auth/google/exchange', { code }); }
+export function startGoogleSignIn() { window.location.assign(`${BASE_URL}/auth/google`); }

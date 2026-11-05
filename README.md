@@ -6,7 +6,8 @@ CourseHubs is an academic resource platform for the Computer Science community. 
 
 - Public home, about, features, how-it-works, contact and FAQ pages.
 - Student and staff registration with email verification.
-- Login, logout, password recovery and protected application routes.
+- Email/password login, Google sign-in for existing accounts, logout, password recovery and protected application routes.
+- Account settings for profile details, profile photo, verified email changes, password changes and account deletion.
 - Private dashboard, course catalogue, course details and resource contribution entry point.
 - Purpose-specific transactional email through Nylas.
 - PostgreSQL persistence with versioned, automatically applied database migrations.
@@ -29,6 +30,7 @@ Some academic workspace capabilities are being developed incrementally. The cour
 - PHP 8.3 or newer with `pdo_pgsql` and `curl` extensions enabled.
 - An accessible PostgreSQL database. A new empty Neon database can be used.
 - A Nylas application and registered sending domain for real verification and password-reset email delivery.
+- A Google Cloud OAuth 2.0 Web application client for Google sign-in.
 
 ## Clone the repository
 
@@ -65,6 +67,9 @@ Edit `backend/.env` and set the following values:
 | `NYLAS_VERIFY_FROM_NAME` | Verification sender display name. |
 | `NYLAS_PASSWORD_RESET_FROM_EMAIL` | Password-reset sender address on the registered domain. |
 | `NYLAS_PASSWORD_RESET_FROM_NAME` | Password-reset sender display name. |
+| `GOOGLE_CLIENT_ID` | Google OAuth 2.0 Web application client ID. |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret; backend only. |
+| `GOOGLE_REDIRECT_URI` | Exact backend callback URL, for example `https://coursehubs-api.onrender.com/auth/google/callback`. |
 
 Never commit `backend/.env` or expose its credentials in the frontend.
 
@@ -85,6 +90,21 @@ The default local API address is:
 ```env
 VITE_API_URL=http://127.0.0.1:8000
 ```
+
+## Configure Google sign-in
+
+1. Open the Google Cloud Console and create or select a project.
+2. Configure the OAuth consent screen / Google Auth Platform branding and audience. Add authorised test users while the app is in testing mode.
+3. Create an OAuth client with application type **Web application**.
+4. Add the frontend origin (for production, `https://coursehubs.onrender.com`) under **Authorised JavaScript origins**.
+5. Add the exact backend callback URL (for production, `https://coursehubs-api.onrender.com/auth/google/callback`) under **Authorised redirect URIs**.
+6. Copy the client ID and client secret into the backend environment as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `GOOGLE_REDIRECT_URI` to the exact callback URL registered in Google.
+
+Google sign-in uses a server-side OAuth authorization-code flow, state validation and a short-lived, single-use code exchange with the frontend. It signs in existing CourseHubs accounts whose email address matches the verified Google email, and links that Google identity to the account. Users must first complete the normal CourseHubs registration because student and staff accounts require additional academic details. The Google client secret must never be placed in a `VITE_` variable or committed to Git.
+
+## Account management
+
+The private `/account` page lets signed-in users update their name and phone number, upload or remove a profile photo, request an email change (confirmed through a link sent to the new address), change their password, connect Google sign-in, and delete their account. Profile photos are resized in the browser and stored in PostgreSQL. Account deletion is a soft deletion with personal profile details anonymised so academic records can retain referential integrity.
 
 ## Run locally
 

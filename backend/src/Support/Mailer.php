@@ -67,6 +67,35 @@ final class Mailer
         );
     }
 
+    public static function sendEmailChangeVerificationEmail(string $toEmail, string $firstName, string $token): bool
+    {
+        $url = self::actionUrl('/verify-email-change', $token);
+        if ($url === null) {
+            return false;
+        }
+
+        $safeName = self::escape($firstName);
+        $html = self::emailLayout(
+            'Confirm the new email address for your CourseHubs account.',
+            'Confirm your new email address',
+            '<p style="margin:0 0 16px">Hello ' . $safeName . ',</p>'
+                . '<p style="margin:0 0 16px">A request was made to change the email address on your CourseHubs account. Confirm this new address to complete the change.</p>',
+            'Confirm new email address',
+            $url,
+            'This confirmation link expires in 24 hours and can only be used once.',
+            'If you did not request this change, you can ignore this email. Your current email address will remain on your account.',
+            '#2457C5'
+        );
+
+        return self::send(
+            'verification',
+            $toEmail,
+            $firstName,
+            'Confirm your new CourseHubs email address',
+            $html
+        );
+    }
+
     private static function send(
         string $purpose,
         string $toEmail,

@@ -4,21 +4,23 @@ declare(strict_types=1);
 
 /** @var Router $router */
 
-// Simple health check: confirms the PHP app is running and can reach
-// the database, without exposing any real data. Useful for a quick
-// "is the server up?" check during development and demo day.
 $router->get('/health', function (): void {
     try {
         Database::connection()->query('SELECT 1');
         Response::json(['status' => 'ok', 'database' => 'connected']);
     } catch (Throwable $e) {
-        Response::json(['status' => 'ok', 'database' => 'unreachable'], 200);
+        error_log('Health check database failure: ' . $e->getMessage());
+        Response::json(['status' => 'ok', 'database' => 'unreachable'], 503);
     }
 });
-
-// Further route groups (auth, courses, uploads, admin, ...)
-// get added here as each feature is built.
 
 $router->get('/academic-sessions', [AcademicSessionController::class, 'index']);
 
 $router->post('/auth/register', [AuthController::class, 'register']);
+$router->get('/auth/verify-email', [AuthController::class, 'verifyEmail']);
+$router->post('/auth/resend-verification', [AuthController::class, 'resendVerification']);
+$router->post('/auth/login', [AuthController::class, 'login']);
+$router->get('/auth/me', [AuthController::class, 'me']);
+$router->post('/auth/logout', [AuthController::class, 'logout']);
+$router->post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+$router->post('/auth/reset-password', [AuthController::class, 'resetPassword']);

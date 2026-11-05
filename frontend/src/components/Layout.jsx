@@ -1,10 +1,14 @@
 import { useState } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Icon from './Icon';
+import { useAuth } from '../auth/AuthContext';
 
-const nav = [
+const publicNav = [
   { to: '/', label: 'Overview', icon: 'grid', end: true },
   { to: '/catalog', label: 'Explore courses', icon: 'book' },
+  { to: '/about', label: 'About CourseHubs', icon: 'info' },
+];
+const privateNav = [
   { to: '/dashboard', label: 'My workspace', icon: 'layers' },
   { to: '/upload', label: 'Contribute', icon: 'upload' },
 ];
@@ -21,16 +25,26 @@ function Brand() {
 export default function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
-  const isAuth = ['/register', '/login'].includes(location.pathname);
+  const navigate = useNavigate();
+  const { user, loading, signOut } = useAuth();
+  const isAuth = ['/register', '/login', '/verify-email', '/resend-verification', '/forgot-password', '/reset-password'].includes(location.pathname);
   const closeMenu = () => setMenuOpen(false);
+  const navItems = user ? [...publicNav, ...privateNav] : publicNav;
+
+  async function handleSignOut() {
+    try { await signOut(); } catch { /* Local session is cleared by signOut even if the API is unavailable. */ } finally {
+      closeMenu();
+      navigate('/', { replace: true });
+    }
+  }
 
   return (
     <div className="app-shell">
       <aside className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`} aria-label="Primary navigation">
         <div className="sidebar-top"><Brand/><button className="icon-button sidebar-close" aria-label="Close menu" onClick={closeMenu}><Icon name="x"/></button></div>
-        <div className="sidebar-section-label">YOUR DESK</div>
+        <div className="sidebar-section-label">{user ? 'YOUR COURSEHUBS' : 'DISCOVER'}</div>
         <nav className="sidebar-nav">
-          {nav.map((item) => <NavLink key={item.to} to={item.to} end={item.end} onClick={closeMenu} className={({ isActive }) => `side-link ${isActive ? 'side-link-active' : ''}`}><Icon name={item.icon} size={19}/><span>{item.label}</span>{item.to === '/catalog' && <Icon name="chevronRight" size={15} className="side-link-tail"/>}</NavLink>)}
+          {navItems.map((item) => <NavLink key={item.to} to={item.to} end={item.end} onClick={closeMenu} className={({ isActive }) => `side-link ${isActive ? 'side-link-active' : ''}`}><Icon name={item.icon} size={19}/><span>{item.label}</span>{item.to === '/catalog' && <Icon name="chevronRight" size={15} className="side-link-tail"/>}</NavLink>)}
         </nav>
         <div className="sidebar-grow"/>
         <div className="sidebar-note">
@@ -47,12 +61,17 @@ export default function Layout() {
           <div className="topbar-left"><button className="icon-button mobile-menu" aria-label="Open navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}><Icon name="menu"/></button><span className="topbar-context"><span className="context-dot"/> Department of Computer Science <span className="topbar-context-divider">/</span> EBSU</span></div>
           <div className="topbar-actions">
             <Link to="/catalog" className="topbar-search"><Icon name="search" size={17}/><span>Search resources</span><kbd>/</kbd></Link>
-            <Link to="/login" className="topbar-login">Sign in</Link>
-            <Link to="/register" className="btn btn-primary btn-small">Join CourseHubs <Icon name="arrowUpRight" size={15}/></Link>
+            {!loading && user ? <>
+              <Link to="/dashboard" className="topbar-user"><span className="topbar-avatar">{user.first_name?.[0] || 'U'}</span><span>{user.first_name}</span></Link>
+              <button type="button" className="topbar-signout" onClick={handleSignOut}>Sign out</button>
+            </> : !loading ? <>
+              <Link to="/login" className="topbar-login">Sign in</Link>
+              <Link to="/register" className="btn btn-primary btn-small">Join CourseHubs <Icon name="arrowUpRight" size={15}/></Link>
+            </> : <span className="topbar-auth-loading" aria-label="Checking sign-in status"/>}
           </div>
         </header>
         <div className={`page-content ${isAuth ? 'page-content-auth' : ''}`}><Outlet/></div>
-        <footer className="site-footer"><span>© 2026 CourseHubs · Built for EBSU Computer Science</span><span>Find it. Learn it. Make it yours.</span></footer>
+        <footer className="site-footer"><span>© 2026 CourseHubs · Built for EBSU Computer Science</span><span><Link to="/about">About</Link> · Find it. Learn it. Make it yours.</span></footer>
       </div>
     </div>
   );

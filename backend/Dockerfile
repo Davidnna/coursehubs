@@ -1,9 +1,9 @@
 # Render backend deployment: root directory = backend, runtime = Docker
 FROM php:8.3-apache
 
-# PostgreSQL PDO driver and Apache URL rewriting.
-RUN apt-get update && apt-get install -y --no-install-recommends libpq-dev \
-    && docker-php-ext-install pdo_pgsql \
+# PostgreSQL PDO, cURL for Brevo transactional email, and Apache URL rewriting.
+RUN apt-get update && apt-get install -y --no-install-recommends libpq-dev libcurl4-openssl-dev \
+    && docker-php-ext-install pdo_pgsql curl \
     && rm -rf /var/lib/apt/lists/* \
     && a2enmod rewrite \
     && sed -i 's/Listen 80/Listen 10000/' /etc/apache2/ports.conf \

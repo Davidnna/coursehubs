@@ -1,5 +1,9 @@
 RewriteEngine On
 
+# Preserve Authorization headers for PHP under Apache/mod_php and proxy setups.
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
 # If the request isn't for a real file or directory, route it through
 # index.php so the front controller/router can handle it.
 RewriteCond %{REQUEST_FILENAME} !-f

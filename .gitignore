@@ -1,28 +1,24 @@
-# secrets / local config
-backend/.env
-frontend/.env
-*.env.local
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# dependencies and build output
-node_modules/
-frontend/dist/
+node_modules
+dist
+dist-ssr
+*.local
 
-# OS / editor
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
 .DS_Store
-Thumbs.db
-.idea/
-.vscode/
-
-# Extra credentials and sensitive student documents
-.env
-**/.env
-**/.env.*
-!**/.env.example
-*.pem
-*.key
-*service-account*.json
-
-# Personal academic reference files should not be published as code
-reference_documents/
-# Contains personal working-history notes, not needed for deployment
-docs/09_WORKING_WITH_DAVID_AND_HISTORY.md
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

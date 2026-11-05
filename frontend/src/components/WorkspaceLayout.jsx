@@ -1,0 +1,49 @@
+import { useState } from 'react';
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import Icon from './Icon';
+import { useAuth } from '../auth/AuthContext';
+
+const workspaceNav = [
+  { to: '/dashboard', label: 'Overview', icon: 'grid', end: true },
+  { to: '/catalog', label: 'Course library', icon: 'book' },
+  { to: '/upload', label: 'Contribute resources', icon: 'upload' },
+];
+
+function WorkspaceBrand() {
+  return <Link to="/dashboard" className="brand" aria-label="CourseHubs workspace"><span className="brand-mark"><span className="mark-dot"/><span className="mark-line mark-line-one"/><span className="mark-line mark-line-two"/><span className="mark-line mark-line-three"/></span><span className="brand-wordmark">course<span>hubs</span><small>YOUR ACADEMIC WORKSPACE</small></span></Link>;
+}
+
+export default function WorkspaceLayout() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+
+  async function handleSignOut() {
+    try { await signOut(); } catch { /* The local session is cleared by signOut. */ } finally {
+      setMenuOpen(false);
+      navigate('/', { replace: true });
+    }
+  }
+
+  return (
+    <div className="app-shell workspace-shell">
+      <aside className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`} aria-label="Workspace navigation">
+        <div className="sidebar-top"><WorkspaceBrand/><button className="icon-button sidebar-close" aria-label="Close menu" onClick={() => setMenuOpen(false)}><Icon name="x"/></button></div>
+        <div className="sidebar-section-label">YOUR WORKSPACE</div>
+        <nav className="sidebar-nav">{workspaceNav.map((item) => <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMenuOpen(false)} className={({ isActive }) => `side-link ${isActive ? 'side-link-active' : ''}`}><Icon name={item.icon} size={19}/><span>{item.label}</span></NavLink>)}</nav>
+        <div className="sidebar-grow"/>
+        <div className="sidebar-note"><div className="sidebar-note-icon"><Icon name="spark" size={20}/></div><strong>Your learning space, organised.</strong><p>Explore the CourseHubs website or return to your workspace whenever you need it.</p><Link to="/" onClick={() => setMenuOpen(false)}>Visit public website <Icon name="arrowRight" size={15}/></Link></div>
+        <div className="sidebar-bottom"><span className="sidebar-dot"/> EBONYI STATE UNIVERSITY <span className="sidebar-bottom-small">/ CS</span></div>
+      </aside>
+      {menuOpen && <button className="mobile-overlay" aria-label="Close navigation" onClick={() => setMenuOpen(false)}/>}
+      <div className="main-column">
+        <header className="topbar workspace-topbar">
+          <div className="topbar-left"><button className="icon-button mobile-menu" aria-label="Open workspace menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}><Icon name="menu"/></button><span className="topbar-context"><span className="context-dot"/> PRIVATE COURSEHUBS WORKSPACE</span></div>
+          <div className="topbar-actions"><Link to="/" className="workspace-public-link"><Icon name="external" size={15}/> <span>Public website</span></Link><Link to="/dashboard" className="topbar-user"><span className="topbar-avatar">{user?.first_name?.[0] || 'U'}</span><span>{user?.first_name || 'Account'}</span></Link><button type="button" className="topbar-signout" onClick={handleSignOut}>Sign out</button></div>
+        </header>
+        <div className="page-content"><Outlet/></div>
+        <footer className="site-footer"><span>© {new Date().getFullYear()} CourseHubs · Private academic workspace</span><span><Link to="/">Public website</Link> · <Link to="/contact">Help & contact</Link></span></footer>
+      </div>
+    </div>
+  );
+}

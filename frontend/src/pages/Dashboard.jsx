@@ -14,6 +14,6 @@ export default function Dashboard() {
       <div className="workspace-widget"><div className="widget-top"><span className="widget-symbol"><Icon name="clock"/></span><span className="widget-status">ACTIVITY</span></div><h3>Recent activity</h3><p>Pick up where you left off with your courses.</p><div className="widget-placeholder"><Icon name="clock" size={18}/> Activity tracking will appear here.</div></div>
       <div className="workspace-widget"><div className="widget-top"><span className="widget-symbol"><Icon name="user"/></span><span className="widget-status">ACCOUNT</span></div><h3>Account details</h3><p>{user?.email}</p><div className="widget-placeholder"><Icon name="shield" size={18}/> Verified CourseHubs member</div></div>
     </div>
-    <div className="next-step-strip"><div><strong>Ready to explore?</strong><p>The public course index is available to everyone.</p></div><Link to="/catalog" className="btn btn-outline">Browse courses <Icon name="arrowRight" size={18}/></Link></div>
+    <div className="next-step-strip"><div><strong>Ready to explore?</strong><p>Your course library and academic tools are available inside this private workspace.</p></div><Link to="/catalog" className="btn btn-outline">Browse courses <Icon name="arrowRight" size={18}/></Link></div>
   </main>;
 }

@@ -29,6 +29,7 @@ const paths = {
   download: <><path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4"/></>,
   external: <><path d="M14 4h6v6m0-6-9 9"/><path d="M20 13v7H4V4h7"/></>,
   document: <><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></>,
+  mail: <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></>,
   spark: <><path d="m12 2 1.8 7.2L21 11l-7.2 1.8L12 20l-1.8-7.2L3 11l7.2-1.8L12 2ZM19 18l.6 2.4L22 21l-2.4.6L19 24l-.6-2.4L16 21l2.4-.6L19 18Z"/></>,
 };
 

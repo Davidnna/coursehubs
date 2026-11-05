@@ -1,18 +1,11 @@
 import { Link } from 'react-router-dom';
 import Icon from '../components/Icon';
 
-const features = [
-  { icon: 'book', title: 'Course-centred library', text: 'Resources are organized around the Computer Science courses students take.' },
-  { icon: 'search', title: 'Find materials faster', text: 'A searchable repository reduces the need to hunt through scattered chat messages.' },
-  { icon: 'shield', title: 'Account-based access', text: 'Personal workspaces and contribution tools are reserved for signed-in users.' },
-];
-
 export default function About() {
-  return <main className="standard-page about-page">
-    <div className="breadcrumb"><Link to="/">Home</Link><Icon name="chevronRight" size={14}/>About CourseHubs</div>
-    <div className="page-lead"><div className="page-eyebrow"><span className="eyebrow-line"/> ABOUT THE PLATFORM</div><h1>Academic resources,<br/><span>in one shared place.</span></h1><p>CourseHubs is a centralized academic resource repository designed for the Department of Computer Science at Ebonyi State University.</p></div>
-    <section className="about-mission"><span className="section-kicker">WHY COURSEHUBS EXISTS</span><h2>Less time searching.<br/><em>More time learning.</em></h2><p>Students often receive lecture materials, past questions and model answers through separate groups and personal contacts. CourseHubs is being developed to bring those resources into one organized, searchable space.</p><Link to="/catalog" className="btn btn-primary">Explore the public catalog <Icon name="arrowRight" size={18}/></Link></section>
-    <section className="about-feature-grid">{features.map((feature) => <article className="workspace-widget" key={feature.title}><span className="widget-symbol"><Icon name={feature.icon}/></span><h3>{feature.title}</h3><p>{feature.text}</p></article>)}</section>
-    <div className="catalog-disclaimer"><Icon name="info" size={20}/><div><strong>Development status</strong><p>The public homepage, course index and course-detail previews are accessible without an account. Authenticated workspaces are protected. Live course and document-management features will be enabled as their backend modules are completed.</p></div></div>
+  return <main className="marketing-inner-page">
+    <section className="marketing-page-hero"><div className="marketing-eyebrow"><span/> ABOUT COURSEHUBS</div><h1>Built to make learning<br/><em>more organised.</em></h1><p>CourseHubs is an academic resource platform being developed for the Department of Computer Science at Ebonyi State University. Its purpose is simple: make course-related learning resources easier to organise, discover and share.</p><div className="marketing-page-actions"><Link to="/register" className="btn btn-primary">Join CourseHubs <Icon name="arrowUpRight" size={17}/></Link><Link to="/features" className="marketing-secondary-link">Explore the platform <Icon name="arrowRight" size={17}/></Link></div></section>
+    <section className="marketing-story-grid"><div className="marketing-story-panel"><span className="marketing-story-index">01 / THE CHALLENGE</span><h2>Useful resources can be hard to keep track of.</h2><p>Course materials, lecture notes, past questions and other study resources can end up scattered across messaging groups, personal devices and separate folders. Finding the right material at the right time becomes unnecessarily difficult.</p></div><div className="marketing-story-panel marketing-story-panel-dark"><span className="marketing-story-index">02 / THE IDEA</span><h2>Bring the academic resource experience together.</h2><p>CourseHubs is designed around courses and academic levels, giving students and approved contributors a more structured place to discover and share useful learning materials.</p></div></section>
+    <section className="marketing-values-section"><div className="marketing-eyebrow">WHAT GUIDES THE PLATFORM</div><h2>Useful by design.<br/><em>Built around learning.</em></h2><div className="marketing-values-grid"><article><Icon name="search" size={23}/><h3>Clarity</h3><p>Make it easier to locate resources by course, level and type.</p></article><article><Icon name="layers" size={23}/><h3>Organisation</h3><p>Keep materials connected to the academic context where they belong.</p></article><article><Icon name="shield" size={23}/><h3>Responsible access</h3><p>Use verified accounts and protected workspaces for member tools.</p></article></div></section>
+    <section className="marketing-inline-cta"><div><h2>Be part of a more organised resource community.</h2><p>Create an account to access the CourseHubs workspace.</p></div><Link to="/register" className="btn btn-primary">Create an account <Icon name="arrowUpRight" size={17}/></Link></section>
   </main>;
 }

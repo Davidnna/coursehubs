@@ -23,6 +23,8 @@ import NotFound from './pages/NotFound';
 import Account from './pages/Account';
 import VerifyEmailChange from './pages/VerifyEmailChange';
 import GoogleCallback from './pages/GoogleCallback';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
 import { PageEffects, ScrollToTopButton } from './components/PageEffects';
 
 export default function App() {
@@ -40,6 +42,8 @@ export default function App() {
             <Route path="how-it-works" element={<HowItWorks/>}/>
             <Route path="contact" element={<Contact/>}/>
             <Route path="faq" element={<FAQ/>}/>
+            <Route path="privacy" element={<PrivacyPolicy/>}/>
+            <Route path="terms" element={<TermsOfService/>}/>
             <Route element={<GuestRoute/>}>
               <Route path="login" element={<Login/>}/>
               <Route path="register" element={<Register/>}/>

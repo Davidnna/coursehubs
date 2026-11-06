@@ -142,6 +142,7 @@ final class Mailer
             return false;
         }
 
+        $supportEmail = strtolower(trim((string) Config::get('NYLAS_SUPPORT_EMAIL', 'support@' . $domain)));
         $payload = [
             'to' => [[
                 'name' => trim($recipientName),
@@ -154,6 +155,12 @@ final class Mailer
             'subject' => $subject,
             'body' => $htmlBody,
         ];
+        if (filter_var($supportEmail, FILTER_VALIDATE_EMAIL) && str_ends_with($supportEmail, '@' . $domain)) {
+            $payload['reply_to'] = [[
+                'name' => 'CourseHubs Support',
+                'email' => $supportEmail,
+            ]];
+        }
 
         try {
             $encodedPayload = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

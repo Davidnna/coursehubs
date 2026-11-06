@@ -4,12 +4,12 @@ CourseHubs is an academic resource platform for the Computer Science community. 
 
 ## What the application includes
 
-- Public home, about, features, how-it-works, contact and FAQ pages.
+- Public home, about, features, how-it-works, contact, FAQ, Privacy Policy and Terms of Service pages.
 - Student and staff registration with email verification.
 - Email/password login, Google sign-in for existing accounts, logout, password recovery and protected application routes.
 - Account settings for profile details, profile photo, verified email changes, password changes and account deletion.
 - Private dashboard, course catalogue, course details and resource contribution entry point.
-- Purpose-specific transactional email through Nylas.
+- Purpose-specific transactional email through Nylas, with replies directed to the CourseHubs support mailbox.
 - PostgreSQL persistence with versioned, automatically applied database migrations.
 - Responsive layouts, accessible navigation, reduced-motion support and animated interface elements.
 
@@ -20,7 +20,7 @@ Some academic workspace capabilities are being developed incrementally. The cour
 - Frontend: React, Vite and React Router.
 - Backend: PHP 8.3, Apache and PDO PostgreSQL.
 - Database: PostgreSQL (Neon supported).
-- Email: Nylas Transactional Send.
+- Email: Nylas Transactional Send and Nylas Agent Accounts for inbound support mail.
 - Hosting: Render.
 
 ## Requirements
@@ -29,7 +29,7 @@ Some academic workspace capabilities are being developed incrementally. The cour
 - Node.js 22.12 or newer (Node.js 24 LTS is also suitable) and npm.
 - PHP 8.3 or newer with `pdo_pgsql` and `curl` extensions enabled.
 - An accessible PostgreSQL database. A new empty Neon database can be used.
-- A Nylas application and registered sending domain for real verification and password-reset email delivery.
+- A Nylas application, registered sending domain and Nylas Agent Account for transactional email delivery and inbound support email.
 - A Google Cloud OAuth 2.0 Web application client for Google sign-in.
 
 ## Clone the repository
@@ -67,6 +67,7 @@ Edit `backend/.env` and set the following values:
 | `NYLAS_VERIFY_FROM_NAME` | Verification sender display name. |
 | `NYLAS_PASSWORD_RESET_FROM_EMAIL` | Password-reset sender address on the registered domain. |
 | `NYLAS_PASSWORD_RESET_FROM_NAME` | Password-reset sender display name. |
+| `NYLAS_SUPPORT_EMAIL` | Receiving support mailbox on the registered Nylas domain, normally `support@your-domain.nylas.email`. Provision this as a Nylas Agent Account. |
 | `GOOGLE_CLIENT_ID` | Google OAuth 2.0 Web application client ID. |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret; backend only. |
 | `GOOGLE_REDIRECT_URI` | Exact backend callback URL, for example `https://coursehubs-api.onrender.com/auth/google/callback`. |
@@ -101,6 +102,10 @@ VITE_API_URL=http://127.0.0.1:8000
 6. Copy the client ID and client secret into the backend environment as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `GOOGLE_REDIRECT_URI` to the exact callback URL registered in Google.
 
 Google sign-in uses a server-side OAuth authorization-code flow, state validation and a short-lived, single-use code exchange with the frontend. It signs in existing CourseHubs accounts whose email address matches the verified Google email, and links that Google identity to the account. Users must first complete the normal CourseHubs registration because student and staff accounts require additional academic details. The Google client secret must never be placed in a `VITE_` variable or committed to Git.
+
+## Public legal pages and support email
+
+The public website includes `/privacy` and `/terms`. The registration page links to both policies. CourseHubs uses `NYLAS_SUPPORT_EMAIL` as the reply-to and public privacy/support contact address. Create that address as a Nylas Agent Account on the registered Nylas domain so it can receive messages; transactional sending alone does not create an inbox.
 
 ## Account management
 

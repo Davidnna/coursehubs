@@ -57,6 +57,7 @@ export default function Login() {
       {unverifiedEmail && <div className="auth-alert"><Icon name="info" size={19}/><div><strong>Email verification required</strong><p>Your account exists, but its email address has not been verified.</p><Link to={`/resend-verification?email=${encodeURIComponent(unverifiedEmail)}`}>Resend verification link</Link></div></div>}
       {googleMessage && <div className={googleStatus === 'cancelled' ? 'auth-alert' : 'form-error-banner'} role="status"><Icon name="info" size={18}/><span>{googleMessage}</span></div>}
       <button className="google-signin-button" type="button" onClick={startGoogleSignIn}><GoogleMark/> <span>Continue with Google</span></button>
+      <p className="google-privacy-note">When you continue with Google, CourseHubs uses your verified email and basic profile identity to sign you in. Read our <Link to="/privacy">Privacy Policy</Link>.</p>
       <div className="auth-divider"><span>or continue with email</span></div>
       <form className="auth-form login-fields" onSubmit={handleSubmit}>
         <div className="field"><label htmlFor="login-email">Email address</label><input id="login-email" type="email" autoComplete="email" placeholder="you@example.com" required value={email} onChange={(e) => setEmail(e.target.value)}/></div>

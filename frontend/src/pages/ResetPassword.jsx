@@ -14,6 +14,7 @@ export default function ResetPassword() {
   const [fieldError, setFieldError] = useState('');
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [canRequestFreshLink, setCanRequestFreshLink] = useState(!token);
 
   async function submit(event) {
     event.preventDefault(); setError(''); setFieldError('');
@@ -25,6 +26,7 @@ export default function ResetPassword() {
       window.setTimeout(() => navigate('/login', { replace: true }), 1800);
     } catch (err) {
       setError(err.fields?.password || err.message || 'Unable to reset your password.');
+      if (err.code === 'RESET_TOKEN_EXPIRED') setCanRequestFreshLink(true);
     } finally { setBusy(false); }
   }
 
@@ -36,6 +38,6 @@ export default function ResetPassword() {
       <div className={`field ${fieldError ? 'field-error' : ''}`}><label htmlFor="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Enter the password again"/>{fieldError && <small className="field-error-text">{fieldError}</small>}</div>
       <button className="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Updating…' : 'Update password'} <Icon name="arrowRight" size={18}/></button>
     </form>}
-    <div className="auth-panel-bottom"><Link to="/forgot-password">Request a fresh reset link</Link><span>·</span><Link to="/login">Back to sign in</Link></div>
+    <div className="auth-panel-bottom">{canRequestFreshLink && !done && <><Link to="/forgot-password">Request a fresh reset link</Link><span>·</span></>}<Link to="/login">Back to sign in</Link></div>
   </AuthFrame>;
 }

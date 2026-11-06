@@ -75,7 +75,7 @@ export default function PublicLayout() {
             <p>A more organised way for the EBSU Computer Science community to find, manage and share academic resources.</p>
           </div>
           <div className="marketing-footer-column"><strong>Explore</strong><Link to="/about">About CourseHubs</Link><Link to="/features">Platform features</Link><Link to="/how-it-works">How it works</Link><Link to="/contact">Contact</Link><Link to="/faq">FAQs</Link></div>
-          <div className="marketing-footer-column"><strong>Your account</strong><Link to="/register">Create an account</Link><Link to="/login">Sign in</Link><Link to="/forgot-password">Forgot password?</Link><Link to="/resend-verification">Resend verification</Link></div>
+          <div className="marketing-footer-column"><strong>Your account</strong><Link to="/register">Create an account</Link><Link to="/login">Sign in</Link></div>
           <div className="marketing-footer-column"><strong>Legal</strong><Link to="/privacy">Privacy Policy</Link><Link to="/terms">Terms of Service</Link><Link to="/contact">Privacy & support enquiries</Link></div>
         </div>
         <div className="marketing-footer-bottom"><span>© {new Date().getFullYear()} CourseHubs. Independently operated for the EBSU community; not affiliated with EBSU.</span><span>Find it. Learn it. Make it yours.</span></div>

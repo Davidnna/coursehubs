@@ -872,16 +872,36 @@ html[data-motion="reduced"] .ambient3d *::after {
   }
 }
 
-/* Motion preference explanation: visible on hover and keyboard focus. */
-.motion-control-wrap { position: fixed; z-index: 91; left: clamp(14px, 2.5vw, 28px); bottom: max(20px, env(safe-area-inset-bottom)); }
-.motion-control-wrap .motion-control { position: relative; left: auto; bottom: auto; }
+/* The control is portalled to document.body so app stacking contexts, drawers,
+   transformed layouts and clipped containers cannot cover or disable it. */
+.motion-control-wrap {
+  position: fixed;
+  z-index: 10000;
+  isolation: isolate;
+  pointer-events: auto;
+  left: max(16px, calc(env(safe-area-inset-left) + 12px));
+  bottom: max(18px, calc(env(safe-area-inset-bottom) + 12px));
+  max-width: calc(100vw - 32px);
+}
+.motion-control-wrap .motion-control {
+  position: relative;
+  z-index: 1;
+  left: auto;
+  bottom: auto;
+  min-height: 48px;
+  touch-action: manipulation;
+  pointer-events: auto;
+}
 .motion-control-info { display: inline-grid; place-items: center; width: 16px; height: 16px; border: 1px solid rgba(255,255,255,.6); border-radius: 50%; font: 700 10px/1 Arial, sans-serif; }
 .motion-control-tooltip { position: absolute; left: 0; bottom: calc(100% + 12px); width: min(310px, calc(100vw - 32px)); padding: 12px 14px; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; background: #101b35; color: #fff; box-shadow: 0 12px 32px rgba(13,21,43,.22); font-size: 12px; line-height: 1.65; opacity: 0; visibility: hidden; transform: translateY(5px); transition: opacity .18s ease, transform .18s ease, visibility .18s; pointer-events: none; }
 .motion-control-wrap:hover .motion-control-tooltip,
 .motion-control-wrap:focus-within .motion-control-tooltip { opacity: 1; visibility: visible; transform: translateY(0); }
 @media (max-width: 480px) {
-  .motion-control-wrap { left: 12px; bottom: max(14px, env(safe-area-inset-bottom)); }
-  .motion-control-wrap .motion-control { min-height: 42px; padding-inline: 12px; font-size: 11px; }
+  .motion-control-wrap {
+    left: max(12px, calc(env(safe-area-inset-left) + 8px));
+    bottom: max(16px, calc(env(safe-area-inset-bottom) + 10px));
+  }
+  .motion-control-wrap .motion-control { min-height: 48px; padding-inline: 13px; font-size: 12px; }
 }
 
 /* Shared account navigation and Google sign-in controls. */

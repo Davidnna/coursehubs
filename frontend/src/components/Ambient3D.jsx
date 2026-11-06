@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const cubeFaces = ['front', 'back', 'right', 'left', 'top', 'bottom'];
 const MOTION_STORAGE_KEY = 'coursehubs-motion-preference';
@@ -68,23 +69,26 @@ export default function Ambient3D() {
         <div className="ambient3d__float ambient3d__float--satellite"><div className="ambient3d__satellite-orbit"><span /></div></div>
       </div>
 
-      <div className="motion-control-wrap">
-        <button
-          type="button"
-          className="motion-control"
-          onClick={toggleMotion}
-          aria-pressed={motionEnabled}
-          aria-describedby="motion-control-help"
-          aria-label={motionEnabled ? 'Pause decorative 3D animations' : 'Enable decorative 3D animations'}
-        >
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            {motionEnabled ? <><path d="M8 5v14M16 5v14" /></> : <><path d="m8 5 11 7-11 7z" /></>}
-          </svg>
-          <span>{motionEnabled ? 'Motion on' : 'Motion off'}</span>
-          <span className="motion-control-info" aria-hidden="true">i</span>
-        </button>
-        <span className="motion-control-tooltip" id="motion-control-help" role="tooltip">{explanation}</span>
-      </div>
+      {typeof document !== 'undefined' && createPortal(
+        <div className="motion-control-wrap">
+          <button
+            type="button"
+            className="motion-control"
+            onClick={toggleMotion}
+            aria-pressed={motionEnabled}
+            aria-describedby="motion-control-help"
+            aria-label={motionEnabled ? 'Pause decorative 3D animations' : 'Enable decorative 3D animations'}
+          >
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              {motionEnabled ? <><path d="M8 5v14M16 5v14" /></> : <><path d="m8 5 11 7-11 7z" /></>}
+            </svg>
+            <span>{motionEnabled ? 'Motion on' : 'Motion off'}</span>
+            <span className="motion-control-info" aria-hidden="true">i</span>
+          </button>
+          <span className="motion-control-tooltip" id="motion-control-help" role="tooltip">{explanation}</span>
+        </div>,
+        document.body,
+      )}
     </>
   );
 }

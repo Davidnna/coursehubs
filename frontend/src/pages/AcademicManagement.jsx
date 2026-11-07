@@ -122,9 +122,20 @@ export default function AcademicManagement() {
   }
 
   function changeStructureTab(next) {
-    setStructureTab(next);
+    const validTab = STRUCTURE_FORM_KEYS[next] ? next : 'faculties';
+    setStructureTab(validTab);
     setEditing(null);
-    setForm(createEmptyForm(getFormKey('structure', next)));
+    setForm(createEmptyForm(getFormKey('structure', validTab)));
+    setNotice('');
+    setError('');
+  }
+
+  function openStructureForm(next) {
+    const validTab = STRUCTURE_FORM_KEYS[next] ? next : 'faculties';
+    setTab('structure');
+    setStructureTab(validTab);
+    setEditing(null);
+    setForm(createEmptyForm(getFormKey('structure', validTab)));
     setNotice('');
     setError('');
   }
@@ -305,12 +316,12 @@ export default function AcademicManagement() {
           ['Sessions', data.overview?.counts?.sessions || 0, 'calendar'],
         ].map(([label, value, icon]) => <article className="academic-stat" key={label}><span><Icon name={icon} size={19}/></span><strong>{value}</strong><small>{label}</small></article>)}</div>
         <div className="academic-overview-grid"><section className="academic-panel academic-current-session"><span className="academic-kicker">CURRENT ACADEMIC SESSION</span><h2>{currentSession?.name || 'Not selected'}</h2><p>{currentSession ? 'This session is used as the default context for the student course catalogue.' : 'Create an academic session and mark it as current to activate the course catalogue.'}</p><button className="btn btn-outline" type="button" onClick={() => changeTab('sessions')}>Manage sessions <Icon name="arrowRight" size={16}/></button></section><section className="academic-panel academic-setup-checklist"><span className="academic-kicker">SETUP CHECKLIST</span><h3>Build your academic directory</h3>{[
-          ['Create a faculty', faculties.length > 0, 'structure'],
-          ['Add a department', departments.length > 0, 'structure'],
-          ['Create a programme', programmes.length > 0, 'structure'],
-          ['Add courses', data.courses.length > 0, 'courses'],
-          ['Publish course offerings', data.offerings.length > 0, 'offerings'],
-        ].map(([label, complete, target]) => <button type="button" className="academic-check-row" key={label} onClick={() => changeTab(target)}><span className={complete ? 'academic-check is-done' : 'academic-check'}><Icon name="check" size={13}/></span><span>{label}</span><Icon name="chevronRight" size={15}/></button>)}</section></div>
+          ['Create a faculty', faculties.length > 0, 'structure', 'faculties'],
+          ['Add a department', departments.length > 0, 'structure', 'departments'],
+          ['Create a programme', programmes.length > 0, 'structure', 'programmes'],
+          ['Add courses', data.courses.length > 0, 'courses', null],
+          ['Publish course offerings', data.offerings.length > 0, 'offerings', null],
+        ].map(([label, complete, target, structureType]) => <button type="button" className="academic-check-row" key={label} onClick={() => structureType ? openStructureForm(structureType) : changeTab(target)}><span className={complete ? 'academic-check is-done' : 'academic-check'}><Icon name="check" size={13}/></span><span>{label}</span><Icon name="chevronRight" size={15}/></button>)}</section></div>
       </section>}
 
       {tab === 'structure' && <section className="academic-section-layout"><div className="academic-subtabs" role="tablist" aria-label="Academic structure type">{[{id:'faculties',label:'Faculties',count:faculties.length},{id:'departments',label:'Departments',count:departments.length},{id:'programmes',label:'Programmes',count:programmes.length}].map((item) => <button type="button" role="tab" aria-selected={structureTab === item.id} className={structureTab === item.id ? 'is-selected' : ''} key={item.id} onClick={() => changeStructureTab(item.id)}>{item.label}<span>{item.count}</span></button>)}</div><div className="academic-two-column"><div>{renderStructureForm()}</div><section className="academic-panel"><div className="academic-list-heading"><div><span className="academic-kicker">DIRECTORY</span><h3>{structureTab[0].toUpperCase() + structureTab.slice(1)}</h3></div><span className="academic-count">{structureTab === 'faculties' ? faculties.length : structureTab === 'departments' ? departments.length : programmes.length} records</span></div>{renderStructureList()}</section></div></section>}

@@ -35,6 +35,12 @@ const LEVELS = [100, 200, 300, 400, 500, 600];
 const SEMESTERS = ['First', 'Second'];
 const COURSE_TYPES = ['Compulsory', 'Elective'];
 
+const STRUCTURE_FORM_KEYS = {
+  faculties: 'faculty',
+  departments: 'department',
+  programmes: 'programme',
+};
+
 const EMPTY = {
   faculty: { name: '', code: '', description: '' },
   department: { faculty_id: '', name: '', code: '', description: '' },
@@ -43,6 +49,19 @@ const EMPTY = {
   course: { department_id: '', current_code: '', title: '', description: '', is_university_wide: false },
   offering: { course_id: '', programme_id: '', level: '100', academic_session_id: '', semester: 'First', course_type: 'Compulsory', credit_units: '3', exam_date: '', lecturer_user_ids: [], lecturer_names: '' },
 };
+
+function getFormKey(tab, structureTab) {
+  if (tab === 'structure') return STRUCTURE_FORM_KEYS[structureTab] || 'faculty';
+  if (tab === 'sessions') return 'session';
+  if (tab === 'courses') return 'course';
+  if (tab === 'offerings') return 'offering';
+  return 'faculty';
+}
+
+function createEmptyForm(key) {
+  const template = EMPTY[key] || EMPTY.faculty;
+  return { ...template, ...(key === 'offering' ? { lecturer_user_ids: [] } : {}) };
+}
 
 function Field({ label, children, hint }) {
   return <label className="academic-field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;
@@ -65,7 +84,7 @@ export default function AcademicManagement() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState(EMPTY.faculty);
+  const [form, setForm] = useState(() => createEmptyForm('faculty'));
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -92,21 +111,20 @@ export default function AcademicManagement() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const currentFormKey = tab === 'structure' ? structureTab : tab === 'sessions' ? 'session' : tab === 'courses' ? 'course' : tab === 'offerings' ? 'offering' : 'faculty';
+  const currentFormKey = getFormKey(tab, structureTab);
 
   function changeTab(next) {
     setTab(next);
     setEditing(null);
     setNotice('');
     setError('');
-    const key = next === 'structure' ? structureTab : next === 'sessions' ? 'session' : next === 'courses' ? 'course' : next === 'offerings' ? 'offering' : 'faculty';
-    setForm(EMPTY[key]);
+    setForm(createEmptyForm(getFormKey(next, structureTab)));
   }
 
   function changeStructureTab(next) {
     setStructureTab(next);
     setEditing(null);
-    setForm(EMPTY[next]);
+    setForm(createEmptyForm(getFormKey('structure', next)));
     setNotice('');
     setError('');
   }
@@ -143,7 +161,7 @@ export default function AcademicManagement() {
 
   function cancelEdit() {
     setEditing(null);
-    setForm(EMPTY[currentFormKey]);
+    setForm(createEmptyForm(currentFormKey));
   }
 
   async function submitForm(event) {
@@ -184,7 +202,7 @@ export default function AcademicManagement() {
         message = editing ? 'Course offering updated.' : 'Course offering created.';
       }
       setEditing(null);
-      setForm(EMPTY[currentFormKey]);
+      setForm(createEmptyForm(currentFormKey));
       setNotice(message);
       await refresh();
     } catch (requestError) {

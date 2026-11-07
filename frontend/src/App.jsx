@@ -26,6 +26,7 @@ import GoogleCallback from './pages/GoogleCallback';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import AcademicManagement from './pages/AcademicManagement';
+import AcademicManagementBoundary from './components/AcademicManagementBoundary';
 import { PageEffects, ScrollToTopButton } from './components/PageEffects';
 
 export default function App() {
@@ -67,7 +68,7 @@ export default function App() {
               <Route path="upload" element={<Upload/>}/>
               <Route path="account" element={<Account/>}/>
               <Route element={<AdminRoute/>}>
-                <Route path="admin/academics" element={<AcademicManagement/>}/>
+                <Route path="admin/academics" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
               </Route>
             </Route>
           </Route>

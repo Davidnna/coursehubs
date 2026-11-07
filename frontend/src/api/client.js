@@ -41,6 +41,8 @@ const FIELD_FALLBACKS = {
   reg_no: 'Enter your student registration number.',
   level: 'Choose a valid academic level.',
   expected_graduation_session_id: 'Choose an expected graduation session.',
+  department_id: 'Choose your department.',
+  programme_id: 'Choose your programme.',
   staff_no: 'Enter your staff number.',
   token: 'This link is invalid or has expired. Request a new one.',
   confirmation: 'Type DELETE to confirm.',
@@ -61,6 +63,8 @@ const KNOWN_FIELD_MESSAGES = {
   reg_no: ['Registration number is required.', 'An account with this registration number already exists.'],
   level: ['Level is required.', 'Level must be a level between 100 and 500, in steps of 100.'],
   expected_graduation_session_id: ['Expected graduation session is required.'],
+  department_id: ['Choose your department.', 'Choose an active department.'],
+  programme_id: ['Choose your programme.', 'Choose a programme under the selected department.'],
   staff_no: ['Staff number is required.', 'An account with this staff number already exists.'],
   token: ['This password-reset link is invalid.'],
   confirmation: ['Type DELETE to confirm.'],
@@ -166,3 +170,36 @@ export function changeAccountPassword(payload) { return api.post('/account/passw
 export function deleteAccount(payload) { return api.del('/account', payload); }
 export function exchangeGoogleCode(code) { return api.post('/auth/google/exchange', { code }); }
 export function startGoogleSignIn() { window.location.assign(`${BASE_URL}/auth/google`); }
+
+
+export function getAcademicStructure() { return api.get('/academic-structure'); }
+
+export function getCourses(filters = {}) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
+  });
+  const query = params.toString();
+  return api.get(`/courses${query ? `?${query}` : ''}`);
+}
+
+export function getCourse(id) { return api.get(`/courses/${encodeURIComponent(id)}`); }
+export function getAcademicOverview() { return api.get('/admin/academic/overview'); }
+export function getAdminAcademicStructure() { return api.get('/admin/academic/structure'); }
+export function getAdminAcademicSessions() { return api.get('/admin/academic/sessions'); }
+export function createAcademicSession(payload) { return api.post('/admin/academic/sessions', payload); }
+export function updateAcademicSession(id, payload) { return api.patch(`/admin/academic/sessions/${id}`, payload); }
+export function createFaculty(payload) { return api.post('/admin/academic/faculties', payload); }
+export function updateFaculty(id, payload) { return api.patch(`/admin/academic/faculties/${id}`, payload); }
+export function createDepartment(payload) { return api.post('/admin/academic/departments', payload); }
+export function updateDepartment(id, payload) { return api.patch(`/admin/academic/departments/${id}`, payload); }
+export function createProgramme(payload) { return api.post('/admin/academic/programmes', payload); }
+export function updateProgramme(id, payload) { return api.patch(`/admin/academic/programmes/${id}`, payload); }
+export function getAdminCourses() { return api.get('/admin/academic/courses'); }
+export function createCourse(payload) { return api.post('/admin/academic/courses', payload); }
+export function updateCourse(id, payload) { return api.patch(`/admin/academic/courses/${id}`, payload); }
+export function getAdminOfferings() { return api.get('/admin/academic/offerings'); }
+export function createCourseOffering(payload) { return api.post('/admin/academic/offerings', payload); }
+export function updateCourseOffering(id, payload) { return api.patch(`/admin/academic/offerings/${id}`, payload); }
+export function archiveCourseOffering(id) { return api.del(`/admin/academic/offerings/${id}`); }
+export function getAcademicStaff() { return api.get('/admin/academic/staff'); }

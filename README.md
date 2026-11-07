@@ -1,6 +1,6 @@
 # CourseHubs
 
-CourseHubs is an academic resource platform for the Computer Science community. Its public website introduces the platform, while its authenticated workspace provides account-based access to academic tools and resources.
+CourseHubs is an independently operated academic platform developed for the Ebonyi State University (EBSU) community. It is not affiliated with, endorsed by or operated by EBSU. Its public website introduces the platform, while its authenticated workspace provides account-based access to academic tools and resources.
 
 ## What the application includes
 
@@ -8,12 +8,14 @@ CourseHubs is an academic resource platform for the Computer Science community. 
 - Student and staff registration with email verification.
 - Email/password login, Google sign-in for existing accounts, logout, password recovery and protected application routes.
 - Account settings for profile details, profile photo, verified email changes, password changes and account deletion.
-- Private dashboard, course catalogue, course details and resource contribution entry point.
+- Private dashboard, live course catalogue and course details backed by PostgreSQL.
+- Administrator-only academic management for faculties, departments, programmes, academic sessions, courses, course offerings and lecturer assignments.
+- Student registration can be associated with a faculty, department and programme once the academic directory is configured.
 - Purpose-specific transactional email through Nylas, with replies directed to the CourseHubs support mailbox.
 - PostgreSQL persistence with versioned, automatically applied database migrations.
 - Responsive layouts, accessible navigation, reduced-motion support and animated interface elements.
 
-Some academic workspace capabilities are being developed incrementally. The course catalogue may contain preview content until live course-management services are completed.
+Resource uploads, moderation, downloads, bookmarks and broader learning workflows are being developed incrementally. Course records and course offerings in the catalogue are now database-driven; resource tabs remain empty until the resource module is released.
 
 ## Technology
 
@@ -60,6 +62,7 @@ Edit `backend/.env` and set the following values:
 | `DATABASE_URL` | PostgreSQL connection URL; use the direct Neon connection string with SSL required. |
 | `FRONTEND_ORIGIN` | Local frontend origin, normally `http://localhost:5173`. |
 | `JWT_SECRET` | A long, random secret used to sign authentication tokens. |
+| `INITIAL_SUPER_ADMIN_EMAIL` | Optional one-time bootstrap. Set this to the exact email of an existing, verified account to grant the first super-administrator role. Remove it after the successful bootstrap log. |
 | `NYLAS_API_KEY` | Nylas application API key. |
 | `NYLAS_API_URI` | Nylas API base URL, normally `https://api.us.nylas.com`. |
 | `NYLAS_DOMAIN` | Registered Nylas sending domain. |
@@ -106,6 +109,13 @@ Google sign-in uses a server-side OAuth authorization-code flow, state validatio
 ## Public legal pages and support email
 
 The public website includes `/privacy` and `/terms`. The registration page links to both policies. CourseHubs uses `NYLAS_SUPPORT_EMAIL` as the reply-to and public privacy/support contact address. Create that address as a Nylas Agent Account on the registered Nylas domain so it can receive messages; transactional sending alone does not create an inbox.
+
+
+## First administrator setup
+
+Academic management is restricted to CourseHubs administrators. On a fresh deployment, create a normal CourseHubs account and verify its email address first. First deploy the application version that contains migration `0005_academic_management.sql` while `INITIAL_SUPER_ADMIN_EMAIL` is unset, so the bootstrap-state table is created. After that deployment is live, set `INITIAL_SUPER_ADMIN_EMAIL` in the backend environment to that exact verified email and redeploy the backend. The migration runner performs a one-time promotion to super administrator and records completion in PostgreSQL. Remove the environment variable after the successful bootstrap message appears in the Render logs. The bootstrap marker prevents the operation from running again. If the account was not yet registered and verified when the variable was first deployed, register and verify it, then redeploy once more.
+
+After signing in again, the administrator will see **Academic management** in the workspace navigation at `/admin/academics`. The administrator can create faculties, departments and programmes; add academic sessions and activate one current session; create department-owned or university-wide courses; and assign courses to programmes, levels, semesters and sessions with linked or manually entered lecturer names. University-wide courses can be offered across departments. Levels (100–600) and semesters (First and Second) are standardised lookup options.
 
 ## Account management
 

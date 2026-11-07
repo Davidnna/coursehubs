@@ -44,6 +44,15 @@ final class Auth
         return $user;
     }
 
+    public static function requireAdmin(): array
+    {
+        $user = self::requireUser();
+        if (!filter_var($user['is_admin'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            Response::error('You do not have permission to manage academic records.', 403, ['code' => 'ADMIN_ACCESS_REQUIRED']);
+        }
+        return $user;
+    }
+
     private static function bearerToken(): ?string
     {
         $header = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';

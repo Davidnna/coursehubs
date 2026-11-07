@@ -19,3 +19,12 @@ export function GuestRoute() {
   if (user) return <Navigate to="/dashboard" replace/>;
   return <Outlet/>;
 }
+
+
+export function AdminRoute() {
+  const { user, loading } = useAuth();
+  if (loading) return <LoadingScreen/>;
+  if (!user) return <Navigate to="/login" replace/>;
+  if (!user.is_admin) return <Navigate to="/dashboard" replace/>;
+  return <Outlet/>;
+}

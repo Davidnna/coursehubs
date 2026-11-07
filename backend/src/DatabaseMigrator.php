@@ -116,6 +116,8 @@ final class DatabaseMigrator
                 }
             }
 
+            self::bootstrapInitialSuperAdmin($pdo);
+
             return $appliedNow;
         } finally {
             if ($lockAcquired) {
@@ -129,6 +131,93 @@ final class DatabaseMigrator
                     error_log('CourseHubs could not release the PostgreSQL migration lock: ' . $unlockException->getMessage());
                 }
             }
+        }
+    }
+
+
+    /**
+     * One-time first-administrator bootstrap. Set INITIAL_SUPER_ADMIN_EMAIL in
+     * the hosting environment to the verified account that should receive the
+     * first super-admin role. The database marker makes this operation one-shot.
+     */
+    private static function bootstrapInitialSuperAdmin(PDO $pdo): void
+    {
+        $email = strtolower(trim((string) Config::get('INITIAL_SUPER_ADMIN_EMAIL', '')));
+        if ($email === '') {
+            return;
+        }
+
+        $pdo->beginTransaction();
+        try {
+            $state = $pdo->prepare(
+                "SELECT completed_at
+                 FROM public.coursehubs_bootstrap_state
+                 WHERE bootstrap_key = 'initial_super_admin'
+                 LIMIT 1 FOR UPDATE"
+            );
+            $state->execute();
+            $bootstrap = $state->fetch(PDO::FETCH_ASSOC);
+            if (!$bootstrap || $bootstrap['completed_at'] !== null) {
+                $pdo->commit();
+                return;
+            }
+
+            $existing = $pdo->query(
+                "SELECT id FROM public.users
+                 WHERE is_super_admin IS TRUE AND deleted_at IS NULL AND status = 'active'
+                 ORDER BY id ASC LIMIT 1 FOR UPDATE"
+            )->fetchColumn();
+
+            if ($existing !== false) {
+                $pdo->prepare('UPDATE public.users SET is_admin = TRUE WHERE id = ?')->execute([(int) $existing]);
+                $complete = $pdo->prepare(
+                    "UPDATE public.coursehubs_bootstrap_state
+                     SET completed_at = CURRENT_TIMESTAMP, completed_user_id = ?
+                     WHERE bootstrap_key = 'initial_super_admin' AND completed_at IS NULL"
+                );
+                $complete->execute([(int) $existing]);
+                $pdo->commit();
+                error_log('CourseHubs initial super-admin bootstrap skipped because an active super administrator already exists.');
+                return;
+            }
+
+            $find = $pdo->prepare(
+                "SELECT id FROM public.users
+                 WHERE LOWER(email) = :email AND deleted_at IS NULL
+                   AND status = 'active' AND is_verified IS TRUE
+                 LIMIT 1 FOR UPDATE"
+            );
+            $find->execute(['email' => $email]);
+            $userId = $find->fetchColumn();
+
+            if ($userId === false) {
+                $pdo->rollBack();
+                error_log('CourseHubs initial super-admin bootstrap is pending: the configured account was not found or is not yet verified.');
+                return;
+            }
+
+            $promote = $pdo->prepare(
+                "UPDATE public.users SET is_admin = TRUE, is_super_admin = TRUE
+                 WHERE id = ? AND deleted_at IS NULL AND status = 'active' AND is_verified IS TRUE"
+            );
+            $promote->execute([(int) $userId]);
+            if ($promote->rowCount() !== 1) {
+                throw new RuntimeException('The configured initial administrator could not be promoted.');
+            }
+
+            $complete = $pdo->prepare(
+                "UPDATE public.coursehubs_bootstrap_state
+                 SET completed_at = CURRENT_TIMESTAMP, completed_user_id = ?
+                 WHERE bootstrap_key = 'initial_super_admin' AND completed_at IS NULL"
+            );
+            $complete->execute([(int) $userId]);
+            $pdo->commit();
+            error_log('CourseHubs initial super administrator configured successfully. Remove INITIAL_SUPER_ADMIN_EMAIL from the hosting environment.');
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $exception;
         }
     }
 

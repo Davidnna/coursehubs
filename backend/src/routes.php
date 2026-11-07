@@ -15,6 +15,30 @@ $router->get('/health', function (): void {
 });
 
 $router->get('/academic-sessions', [AcademicSessionController::class, 'index']);
+$router->get('/academic-structure', [AcademicController::class, 'publicStructure']);
+$router->get('/courses', [AcademicController::class, 'catalog']);
+$router->get('/courses/{id}', [AcademicController::class, 'courseDetail']);
+
+// Administrative academic management. Every route enforces administrator access server-side.
+$router->get('/admin/academic/overview', [AcademicController::class, 'overview']);
+$router->get('/admin/academic/structure', [AcademicController::class, 'adminStructure']);
+$router->get('/admin/academic/sessions', [AcademicController::class, 'sessions']);
+$router->post('/admin/academic/sessions', [AcademicController::class, 'createSession']);
+$router->patch('/admin/academic/sessions/{id}', [AcademicController::class, 'updateSession']);
+$router->post('/admin/academic/faculties', [AcademicController::class, 'createFaculty']);
+$router->patch('/admin/academic/faculties/{id}', [AcademicController::class, 'updateFaculty']);
+$router->post('/admin/academic/departments', [AcademicController::class, 'createDepartment']);
+$router->patch('/admin/academic/departments/{id}', [AcademicController::class, 'updateDepartment']);
+$router->post('/admin/academic/programmes', [AcademicController::class, 'createProgramme']);
+$router->patch('/admin/academic/programmes/{id}', [AcademicController::class, 'updateProgramme']);
+$router->get('/admin/academic/courses', [AcademicController::class, 'adminCourses']);
+$router->post('/admin/academic/courses', [AcademicController::class, 'createCourse']);
+$router->patch('/admin/academic/courses/{id}', [AcademicController::class, 'updateCourse']);
+$router->get('/admin/academic/offerings', [AcademicController::class, 'adminOfferings']);
+$router->post('/admin/academic/offerings', [AcademicController::class, 'createOffering']);
+$router->patch('/admin/academic/offerings/{id}', [AcademicController::class, 'updateOffering']);
+$router->delete('/admin/academic/offerings/{id}', [AcademicController::class, 'archiveOffering']);
+$router->get('/admin/academic/staff', [AcademicController::class, 'staff']);
 
 $router->post('/auth/register', [AuthController::class, 'register']);
 $router->get('/auth/verify-email', [AuthController::class, 'verifyEmail']);

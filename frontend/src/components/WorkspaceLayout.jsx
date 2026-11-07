@@ -8,6 +8,7 @@ const workspaceNav = [
   { to: '/dashboard', label: 'Overview', icon: 'grid', end: true },
   { to: '/catalog', label: 'Course library', icon: 'book' },
   { to: '/upload', label: 'Contribute resources', icon: 'upload' },
+  { to: '/admin/academics', label: 'Academic management', icon: 'school', adminOnly: true },
   { to: '/account', label: 'Account settings', icon: 'user' },
 ];
 
@@ -98,7 +99,7 @@ export default function WorkspaceLayout() {
       <aside ref={sidebarRef} id="workspace-sidebar" className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`} aria-label="Workspace navigation">
         <div className="sidebar-top"><WorkspaceBrand/><button className="icon-button sidebar-close" aria-label="Close menu" onClick={() => { setMenuOpen(false); menuButtonRef.current?.focus(); }}><Icon name="x"/></button></div>
         <div className="sidebar-section-label">YOUR WORKSPACE</div>
-        <nav className="sidebar-nav" aria-label="Workspace pages">{workspaceNav.map((item) => <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMenuOpen(false)} className={({ isActive }) => `side-link ${isActive ? 'side-link-active' : ''}`}><Icon name={item.icon} size={19}/><span>{item.label}</span></NavLink>)}</nav>
+        <nav className="sidebar-nav" aria-label="Workspace pages">{workspaceNav.filter((item) => !item.adminOnly || user?.is_admin).map((item) => <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMenuOpen(false)} className={({ isActive }) => `side-link ${isActive ? 'side-link-active' : ''}`}><Icon name={item.icon} size={19}/><span>{item.label}</span></NavLink>)}</nav>
         <div className="sidebar-grow"/>
         <Link to="/account" className="sidebar-profile-card" onClick={() => setMenuOpen(false)}>
           <UserAvatar user={user} className="sidebar-profile-avatar"/>

@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import PublicLayout from './components/PublicLayout';
 import WorkspaceLayout from './components/WorkspaceLayout';
 import { AuthProvider } from './auth/AuthContext';
-import { GuestRoute, ProtectedRoute } from './auth/RouteGuards';
+import { AdminRoute, GuestRoute, ProtectedRoute } from './auth/RouteGuards';
 import Home from './pages/Home';
 import About from './pages/About';
 import Features from './pages/Features';
@@ -25,6 +25,7 @@ import VerifyEmailChange from './pages/VerifyEmailChange';
 import GoogleCallback from './pages/GoogleCallback';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
+import AcademicManagement from './pages/AcademicManagement';
 import { PageEffects, ScrollToTopButton } from './components/PageEffects';
 
 export default function App() {
@@ -65,6 +66,9 @@ export default function App() {
               <Route path="courses/:id" element={<CourseDetail/>}/>
               <Route path="upload" element={<Upload/>}/>
               <Route path="account" element={<Account/>}/>
+              <Route element={<AdminRoute/>}>
+                <Route path="admin/academics" element={<AcademicManagement/>}/>
+              </Route>
             </Route>
           </Route>
         </Routes>

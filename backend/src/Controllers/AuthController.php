@@ -28,7 +28,7 @@ final class AuthController
             $validator
                 ->required('reg_no', 'Registration number')
                 ->required('level', 'Level')
-                ->levelRange('level', 100, 500, 'Level')
+                ->levelRange('level', 100, 600, 'Level')
                 ->required('expected_graduation_session_id', 'Expected graduation session');
         } elseif ($accountType === 'staff') {
             $validator->required('staff_no', 'Staff number');
@@ -43,6 +43,43 @@ final class AuthController
         }
 
         $db = Database::connection();
+        $departmentId = null;
+        $programmeId = null;
+        if ($accountType === 'student') {
+            $departmentRaw = $body['department_id'] ?? null;
+            $programmeRaw = $body['programme_id'] ?? null;
+            $activeProgrammeCount = (int) $db->query('SELECT COUNT(*) FROM programmes WHERE is_active IS TRUE')->fetchColumn();
+            if ($activeProgrammeCount > 0 && (empty($departmentRaw) || empty($programmeRaw))) {
+                $academicFields = [];
+                if (empty($departmentRaw)) $academicFields['department_id'] = 'Choose your department.';
+                if (empty($programmeRaw)) $academicFields['programme_id'] = 'Choose your programme.';
+                Response::error('Choose your department and programme to continue.', 422, ['fields' => $academicFields]);
+            }
+            if (!empty($departmentRaw) || !empty($programmeRaw)) {
+                $departmentId = filter_var($departmentRaw, FILTER_VALIDATE_INT);
+                $programmeId = filter_var($programmeRaw, FILTER_VALIDATE_INT);
+                if ($departmentId === false || $departmentId < 1 || $programmeId === false || $programmeId < 1) {
+                    Response::error('Choose a valid department and programme.', 422, ['fields' => ['department_id' => 'Choose your department.', 'programme_id' => 'Choose your programme.']]);
+                }
+                $academicCheck = $db->prepare(
+                    'SELECT p.id FROM programmes p JOIN departments d ON d.id = p.department_id
+                     WHERE p.id = ? AND p.department_id = ? AND p.is_active IS TRUE AND d.is_active IS TRUE'
+                );
+                $academicCheck->execute([(int) $programmeId, (int) $departmentId]);
+                if (!$academicCheck->fetchColumn()) {
+                    Response::error('The selected programme does not belong to the selected department.', 422, [
+                        'fields' => ['programme_id' => 'Choose a programme under the selected department.'],
+                    ]);
+                }
+            }
+        } elseif (!empty($body['department_id'])) {
+            $departmentId = filter_var($body['department_id'], FILTER_VALIDATE_INT);
+            if ($departmentId === false || $departmentId < 1) Response::error('Choose a valid department.', 422, ['fields' => ['department_id' => 'Choose a department.']]);
+            $departmentCheck = $db->prepare('SELECT id FROM departments WHERE id = ? AND is_active IS TRUE');
+            $departmentCheck->execute([(int) $departmentId]);
+            if (!$departmentCheck->fetchColumn()) Response::error('Choose an active department.', 422, ['fields' => ['department_id' => 'Choose an active department.']]);
+        }
+
         $email = strtolower(trim((string) $body['email']));
         $existing = $db->prepare('SELECT id FROM users WHERE email = ? AND deleted_at IS NULL AND status = \'active\' LIMIT 1');
         $existing->execute([$email]);
@@ -88,24 +125,25 @@ final class AuthController
                 $stmt = $db->prepare(
                     'INSERT INTO users
                         (first_name, surname, middle_name, email, password_hash, phone,
-                         reg_no, account_type, level, expected_graduation_session_id)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         reg_no, account_type, level, expected_graduation_session_id, department_id, programme_id)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                      RETURNING id'
                 );
                 $stmt->execute([
                     $firstName, $surname, $middleName, $email, $passwordHash, trim((string) $body['phone']),
                     trim((string) $body['reg_no']), 'student', (int) $body['level'], (int) $body['expected_graduation_session_id'],
+                    $departmentId, $programmeId,
                 ]);
             } else {
                 $stmt = $db->prepare(
                     'INSERT INTO users
-                        (first_name, surname, middle_name, email, password_hash, phone, staff_no, account_type)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        (first_name, surname, middle_name, email, password_hash, phone, staff_no, account_type, department_id)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                      RETURNING id'
                 );
                 $stmt->execute([
                     $firstName, $surname, $middleName, $email, $passwordHash, trim((string) $body['phone']),
-                    trim((string) $body['staff_no']), 'staff',
+                    trim((string) $body['staff_no']), 'staff', $departmentId,
                 ]);
             }
 

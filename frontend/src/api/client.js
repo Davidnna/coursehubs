@@ -13,6 +13,7 @@ const ERROR_MESSAGES = {
   INVALID_VERIFICATION_TOKEN: 'This verification link is invalid or has already been used.',
   VERIFICATION_EXPIRED: 'This verification link has expired. Request a new one.',
   RESET_TOKEN_EXPIRED: 'This password-reset link is invalid or has expired. Request a new one.',
+  CSV_EMPTY: 'This CSV contains only column headings and no records. Add at least one row, save the file, and preview it again.',
 };
 
 const STATUS_MESSAGES = {

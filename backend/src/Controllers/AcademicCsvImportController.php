@@ -171,7 +171,7 @@ final class AcademicCsvImportController
                 if (count(array_filter($data, static fn(string $value): bool => $value !== '')) === 0) continue;
                 $rows[] = ['line' => $line, 'data' => $data];
             }
-            if ($rows === []) Response::error('The CSV does not contain any academic records to import.', 422);
+            if ($rows === []) Response::error('This CSV contains column headings but no data rows. Add at least one academic record, save the file, and preview it again.', 422, ['code' => 'CSV_EMPTY']);
             return [$rows, $headers];
         } finally {
             fclose($handle);
@@ -272,7 +272,12 @@ final class AcademicCsvImportController
                 $name = self::text($data['course_title'] ?? '', 200);
                 $code = self::courseCode($data['course_code'] ?? '');
                 if ($name === '' || $code === null) return self::errorRow($name ?: 'Course', 'Enter a course title and a valid course code.');
-                $universityWide = self::booleanValue($data['is_university_wide'] ?? 'false');
+                $rawUniversityWide = strtolower(trim((string) ($data['is_university_wide'] ?? 'false')));
+                if ($rawUniversityWide === '') $rawUniversityWide = 'false';
+                if (!in_array($rawUniversityWide, ['true', 'false', '1', '0', 'yes', 'no', 'y', 'n'], true)) {
+                    return self::errorRow($code . ' · ' . $name, 'Set is_university_wide to true or false.');
+                }
+                $universityWide = in_array($rawUniversityWide, ['true', '1', 'yes', 'y'], true);
                 $departmentId = null;
                 if (!$universityWide) {
                     $faculty = self::resolveFaculty($db, $data['faculty_code'] ?? '', $data['faculty_name'] ?? '');
@@ -285,7 +290,14 @@ final class AcademicCsvImportController
                 $stmt->execute([$code]);
                 $existing = $stmt->fetch();
                 if ($existing) {
-                    if (strcasecmp((string) $existing['title'], $name) === 0 && (int) ($existing['department_id'] ?? 0) === (int) ($departmentId ?? 0) && self::booleanValue($existing['is_university_wide'])) return self::skipRow($code . ' · ' . $name, 'This course already exists and will be skipped.');
+                    $existingUniversityWide = self::booleanValue($existing['is_university_wide']);
+                    if (
+                        strcasecmp((string) $existing['title'], $name) === 0
+                        && (int) ($existing['department_id'] ?? 0) === (int) ($departmentId ?? 0)
+                        && $existingUniversityWide === $universityWide
+                    ) {
+                        return self::skipRow($code . ' · ' . $name, 'This course already exists and will be skipped.');
+                    }
                     return self::errorRow($code . ' · ' . $name, 'This course code is already assigned to a different course.');
                 }
                 return self::uniqueOrReady($seen, ['course:' . strtolower($code)], $code . ' · ' . $name, [
@@ -415,7 +427,10 @@ final class AcademicCsvImportController
                 break;
             case 'courses':
                 $stmt = $db->prepare("INSERT INTO courses (current_code, title, status, department_id, description, is_active, is_university_wide, created_by, updated_by) VALUES (?, ?, 'active', ?, ?, TRUE, ?, ?, ?) RETURNING id");
-                $stmt->execute([$record['current_code'], $record['title'], $record['department_id'], $record['description'], $record['is_university_wide'], $adminId, $adminId]);
+                // PDO_PGSQL may encode PHP false as an empty string for a BOOLEAN parameter.
+                // Pass explicit PostgreSQL boolean literals so FALSE is never sent as ''.
+                $universityWide = $record['is_university_wide'] ? 'true' : 'false';
+                $stmt->execute([$record['current_code'], $record['title'], $record['department_id'], $record['description'], $universityWide, $adminId, $adminId]);
                 break;
             case 'offerings':
                 $stmt = $db->prepare("INSERT INTO course_offerings (course_id, programme_id, level, academic_session_id, semester, code_used, course_type, credit_units, exam_date, status, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?) RETURNING id");
@@ -504,6 +519,6 @@ final class AcademicCsvImportController
     private static function booleanValue(mixed $value): bool
     {
         if (is_bool($value)) return $value;
-        return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'y'], true);
+        return in_array(strtolower(trim((string) $value)), ['1', 'true', 't', 'yes', 'y'], true);
     }
 }

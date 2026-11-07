@@ -10,7 +10,7 @@
 .academic-alert-success { color: #176b4d; background: #eaf8f0; border: 1px solid #cdebd9; }
 .academic-alert button { border: 0; background: transparent; color: inherit; margin-left: auto; padding: 2px; }
 .academic-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 6px; margin: 0 0 23px; border: 1px solid var(--line); border-radius: 12px; background: #fff; scrollbar-width: thin; }
-.academic-tab { display: inline-flex; align-items: center; justify-content: center; gap: 9px; flex: 0 0 auto; min-height: 42px; padding: 0 16px; border: 0; border-radius: 8px; color: #788399; background: transparent; font-size: 10px; font-weight: 800; transition: background .18s,color .18s; }
+.academic-tab { display: inline-flex; text-decoration: none; align-items: center; justify-content: center; gap: 9px; flex: 0 0 auto; min-height: 42px; padding: 0 16px; border: 0; border-radius: 8px; color: #788399; background: transparent; font-size: 10px; font-weight: 800; transition: background .18s,color .18s; }
 .academic-tab:hover { color: var(--navy); background: #f4f6fb; }
 .academic-tab.is-selected { color: #fff; background: var(--navy); }
 .academic-stat-grid { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 13px; }
@@ -27,15 +27,16 @@
 .academic-current-session .btn { min-height: 39px; font-size: 10px; }
 .academic-setup-checklist h3 { margin: 8px 0 17px; font-size: 22px; }
 .academic-kicker { display: block; color: #8a96aa; font-size: 8px; font-weight: 900; letter-spacing: .15em; }
-.academic-check-row { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 42px; padding: 8px 0; border: 0; border-top: 1px solid #edf0f5; background: transparent; color: #46536c; text-align: left; font-size: 10px; font-weight: 700; }
+.academic-check-row { display: flex; text-decoration: none; cursor: pointer; align-items: center; gap: 11px; width: 100%; min-height: 42px; padding: 8px 0; border: 0; border-top: 1px solid #edf0f5; background: transparent; color: #46536c; text-align: left; font-size: 10px; font-weight: 700; }
 .academic-check-row > svg { margin-left: auto; color: #a3adbd; }
 .academic-check { display: grid; place-items: center; width: 21px; height: 21px; border: 1px solid #dce2ed; border-radius: 50%; color: transparent; }
 .academic-check.is-done { color: #147854; background: #e7f7ee; border-color: #bfe8d0; }
 .academic-section-layout { display: grid; gap: 15px; }
 .academic-subtabs { display: flex; flex-wrap: wrap; gap: 7px; }
-.academic-subtabs button { display: inline-flex; align-items: center; gap: 9px; min-height: 37px; padding: 0 13px; border: 1px solid #dfe5ef; border-radius: 8px; color: #6e7a91; background: #fff; font-size: 10px; font-weight: 800; }
-.academic-subtabs button.is-selected { color: var(--blue); background: #eef1ff; border-color: #cfd6ff; }
-.academic-subtabs button span { display: grid; place-items: center; min-width: 19px; height: 19px; padding: 0 4px; border-radius: 10px; color: inherit; background: rgba(66,86,244,.08); font-size: 8px; }
+.academic-subtabs button,.academic-subtabs a { display: inline-flex; text-decoration: none; align-items: center; gap: 9px; min-height: 37px; padding: 0 13px; border: 1px solid #dfe5ef; border-radius: 8px; color: #6e7a91; background: #fff; font-size: 10px; font-weight: 800; }
+.academic-subtabs button.is-selected,.academic-subtabs a.is-selected { color: var(--blue); background: #eef1ff; border-color: #cfd6ff; }
+.academic-subtabs a:focus-visible,.academic-tabs a:focus-visible,.academic-check-row:focus-visible { outline: 3px solid rgba(66,86,244,.35); outline-offset: 3px; }
+.academic-subtabs button span,.academic-subtabs a span { display: grid; place-items: center; min-width: 19px; height: 19px; padding: 0 4px; border-radius: 10px; color: inherit; background: rgba(66,86,244,.08); font-size: 8px; }
 .academic-two-column { display: grid; grid-template-columns: minmax(300px,.85fr) minmax(0,1.15fr); gap: 16px; align-items: start; }
 .academic-form { display: grid; gap: 16px; }
 .academic-form-heading { display: flex; justify-content: space-between; gap: 14px; padding-bottom: 16px; border-bottom: 1px solid #edf0f5; }

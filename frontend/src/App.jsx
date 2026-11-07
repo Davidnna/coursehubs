@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import PublicLayout from './components/PublicLayout';
 import WorkspaceLayout from './components/WorkspaceLayout';
 import { AuthProvider } from './auth/AuthContext';
@@ -68,7 +68,27 @@ export default function App() {
               <Route path="upload" element={<Upload/>}/>
               <Route path="account" element={<Account/>}/>
               <Route element={<AdminRoute/>}>
-                <Route path="admin/academics" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics" element={<Navigate to="/admin/academics/overview" replace/>}/>
+                <Route path="admin/academics/overview" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/structure" element={<Navigate to="/admin/academics/structure/faculties" replace/>}/>
+                <Route path="admin/academics/structure/faculties" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/structure/faculties/new" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/structure/faculties/:recordId/edit" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/structure/departments" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/structure/departments/new" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/structure/departments/:recordId/edit" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/structure/programmes" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/structure/programmes/new" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/structure/programmes/:recordId/edit" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/sessions" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/sessions/new" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/courses" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/courses/new" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/courses/:recordId/edit" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/offerings" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/offerings/new" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/offerings/:recordId/edit" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/*" element={<Navigate to="/admin/academics/overview" replace/>}/>
               </Route>
             </Route>
           </Route>

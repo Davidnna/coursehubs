@@ -316,11 +316,12 @@ final class AcademicCsvImportController
                 $programme = $programmeStmt->fetch();
                 if (!$programme) return self::errorRow($data['course_code'] ?? 'Course offering', 'The programme code was not found under the selected department. Import its programme first.');
                 $courseCode = self::courseCode($data['course_code'] ?? '');
-                $courseStmt = $db->prepare('SELECT id, current_code, department_id, is_university_wide, title FROM courses WHERE LOWER(current_code) = LOWER(?) AND deleted_at IS NULL AND is_active IS TRUE LIMIT 1');
+                $courseStmt = $db->prepare('SELECT id, current_code FROM courses WHERE LOWER(current_code) = LOWER(?) AND deleted_at IS NULL AND is_active IS TRUE LIMIT 1');
                 $courseStmt->execute([(string) $courseCode]);
                 $course = $courseStmt->fetch();
                 if (!$course) return self::errorRow($data['course_code'] ?? 'Course offering', 'The course code was not found. Import its course first.');
-                if (!self::booleanValue($course['is_university_wide']) && (int) $course['department_id'] !== (int) $department['record']['id']) return self::errorRow($courseCode, 'The course and programme must belong to the same department unless the course is university-wide.');
+                // A programme curriculum may include service/ancillary courses owned by another department.
+                // The selected programme is resolved within its own department above; course ownership is independent.
                 $sessionName = trim((string) ($data['academic_session'] ?? ''));
                 $sessionStmt = $db->prepare('SELECT id, ended_at FROM academic_sessions WHERE LOWER(name) = LOWER(?) LIMIT 1');
                 $sessionStmt->execute([$sessionName]);
@@ -331,7 +332,7 @@ final class AcademicCsvImportController
                 $semester = trim((string) ($data['semester'] ?? ''));
                 $courseType = trim((string) ($data['course_type'] ?? ''));
                 $creditUnits = filter_var($data['credit_units'] ?? '', FILTER_VALIDATE_INT);
-                if (!in_array($level, [100, 200, 300, 400, 500, 600], true) || !in_array($semester, ['First', 'Second'], true) || !in_array($courseType, ['Compulsory', 'Elective'], true) || $creditUnits === false || $creditUnits < 1 || $creditUnits > 10) return self::errorRow($courseCode, 'Check the level, semester, course type and credit units.');
+                if (!in_array($level, [100, 200, 300, 400, 500, 600], true) || !in_array($semester, ['First', 'Second'], true) || !in_array($courseType, ['Compulsory', 'Elective'], true) || $creditUnits === false || $creditUnits < 1 || $creditUnits > 30) return self::errorRow($courseCode, 'Check the level, semester, course type and credit units (1–30).');
                 $examDate = trim((string) ($data['exam_date'] ?? ''));
                 if ($examDate !== '' && !self::validDate($examDate)) return self::errorRow($courseCode, 'Enter an examination date in YYYY-MM-DD format or leave it blank.');
                 $identity = implode(':', [(int) $course['id'], (int) $programme['id'], (int) $level, (int) $session['id'], $semester]);

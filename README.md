@@ -10,6 +10,8 @@ CourseHubs is an independently operated academic platform developed for the Ebon
 - Account settings for profile details, profile photo, verified email changes, password changes and account deletion.
 - Private dashboard, live course catalogue and course details backed by PostgreSQL.
 - Administrator-only academic management for faculties, departments, programmes, academic sessions, courses, course offerings and lecturer assignments, with a temporary CSV importer for initial academic data setup.
+
+- Course offerings support cross-department service/ancillary courses and credit loads up to 30 units, including SIWES and industrial training.
 - Student registration can be associated with a faculty, department and programme once the academic directory is configured.
 - Purpose-specific transactional email through Nylas, with replies directed to the CourseHubs support mailbox.
 - PostgreSQL persistence with versioned, automatically applied database migrations.

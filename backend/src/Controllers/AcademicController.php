@@ -593,7 +593,7 @@ final class AcademicController
         if (!in_array($level, self::LEVELS, true)) Response::error('Choose a valid academic level.', 422, ['fields' => ['level' => 'Choose a valid academic level.']]);
         if (!in_array($semester, self::SEMESTERS, true)) Response::error('Choose a valid semester.', 422, ['fields' => ['semester' => 'Choose First or Second semester.']]);
         if (!in_array($courseType, self::COURSE_TYPES, true)) Response::error('Choose a valid course type.', 422, ['fields' => ['course_type' => 'Choose Compulsory or Elective.']]);
-        if ($creditUnits === false || $creditUnits < 1 || $creditUnits > 10) Response::error('Enter course credit units between 1 and 10.', 422, ['fields' => ['credit_units' => 'Enter a value from 1 to 10.']]);
+        if ($creditUnits === false || $creditUnits < 1 || $creditUnits > 30) Response::error('Enter course credit units between 1 and 30.', 422, ['fields' => ['credit_units' => 'Enter a value from 1 to 30.']]);
         if ($examDate !== '') {
             $parsedExamDate = DateTimeImmutable::createFromFormat('!Y-m-d', $examDate);
             if (!$parsedExamDate || $parsedExamDate->format('Y-m-d') !== $examDate) Response::error('Enter a valid examination date.', 422);
@@ -601,7 +601,7 @@ final class AcademicController
 
         $db = Database::connection();
         $check = $db->prepare(
-            'SELECT c.id, c.department_id, CASE WHEN c.is_active IS TRUE THEN 1 ELSE 0 END AS is_active, CASE WHEN c.is_university_wide IS TRUE THEN 1 ELSE 0 END AS is_university_wide, c.status, p.department_id AS programme_department_id,
+            'SELECT c.id, CASE WHEN c.is_active IS TRUE THEN 1 ELSE 0 END AS is_active, c.status,
                     CASE WHEN p.is_active IS TRUE THEN 1 ELSE 0 END AS programme_active, s.ended_at
              FROM courses c CROSS JOIN programmes p CROSS JOIN academic_sessions s
              WHERE c.id = ? AND p.id = ? AND s.id = ? AND c.deleted_at IS NULL'
@@ -609,7 +609,7 @@ final class AcademicController
         $check->execute([$courseId, $programmeId, $sessionId]);
         $related = $check->fetch();
         if (!$related || (int) $related['is_active'] !== 1 || $related['status'] !== 'active' || (int) $related['programme_active'] !== 1) Response::error('Choose an active course, programme and academic session.', 422);
-        if ((int) $related['is_university_wide'] !== 1 && (int) $related['department_id'] !== (int) $related['programme_department_id']) Response::error('The course and programme must belong to the same department unless the course is marked university-wide.', 422);
+        // Cross-department service and ancillary courses are valid programme offerings.
         if ($related['ended_at'] !== null) Response::error('You cannot add offerings to a closed academic session.', 409);
 
         $lecturers = $body['lecturers'] ?? [];

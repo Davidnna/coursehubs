@@ -26,6 +26,7 @@ import GoogleCallback from './pages/GoogleCallback';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import AcademicManagement from './pages/AcademicManagement';
+import AcademicCsvImport from './pages/AcademicCsvImport';
 import AcademicManagementBoundary from './components/AcademicManagementBoundary';
 import { PageEffects, ScrollToTopButton } from './components/PageEffects';
 
@@ -70,6 +71,7 @@ export default function App() {
               <Route element={<AdminRoute/>}>
                 <Route path="admin/academics" element={<Navigate to="/admin/academics/overview" replace/>}/>
                 <Route path="admin/academics/overview" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
+                <Route path="admin/academics/import" element={<AcademicManagementBoundary><AcademicCsvImport/></AcademicManagementBoundary>}/>
                 <Route path="admin/academics/structure" element={<Navigate to="/admin/academics/structure/faculties" replace/>}/>
                 <Route path="admin/academics/structure/faculties" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
                 <Route path="admin/academics/structure/faculties/new" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>

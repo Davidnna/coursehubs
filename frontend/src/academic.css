@@ -111,3 +111,64 @@
 .academic-error-fallback h1 { margin: 0; color: var(--navy); font: 700 clamp(28px,4vw,42px)/1.1 'Outfit',sans-serif; }
 .academic-error-fallback p { max-width: 560px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
 .academic-error-fallback .academic-form-actions { justify-content: flex-start; margin-top: 8px; }
+
+/* Temporary academic CSV setup importer */
+.academic-heading-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; flex: 0 0 auto; }
+.academic-heading-actions .btn { min-height: 42px; font-size: 10px; }
+.csv-import-page { padding-bottom: 30px; }
+.csv-temporary-notice { display: flex; align-items: flex-start; gap: 12px; margin: 0 0 18px; padding: 14px 16px; border: 1px solid #dbe4fa; border-radius: 10px; color: #526481; background: #f4f7ff; }
+.csv-temporary-notice > svg { flex: 0 0 auto; color: var(--blue); margin-top: 1px; }
+.csv-temporary-notice div { display: grid; gap: 3px; }
+.csv-temporary-notice strong { color: var(--navy); font-size: 11px; }
+.csv-temporary-notice span { font-size: 9px; line-height: 1.65; }
+.csv-import-layout { grid-template-columns: minmax(300px,.88fr) minmax(0,1.12fr); align-items: stretch; }
+.csv-import-controls,.csv-import-review { display: grid; align-content: start; gap: 18px; min-width: 0; }
+.csv-import-controls .academic-form-heading,.csv-import-review .academic-form-heading { margin-bottom: 0; }
+.csv-template-box { display: grid; gap: 10px; padding: 13px; border: 1px solid #e2e8f2; border-radius: 9px; background: #f9faff; }
+.csv-template-box > div { display: grid; gap: 4px; }
+.csv-template-box strong { color: var(--navy); font-size: 10px; }
+.csv-template-box span { color: #8490a5; font-size: 8px; line-height: 1.5; }
+.csv-template-box code { display: block; overflow-wrap: anywhere; padding: 9px; border-radius: 6px; color: #52617d; background: #eef2fa; font: 8px/1.7 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.csv-template-box .academic-small-action { justify-self: start; display: inline-flex; align-items: center; gap: 7px; min-height: 34px; }
+.csv-step-heading { margin-top: 2px; }
+.csv-file-drop { display: grid; justify-items: center; gap: 7px; padding: 25px 16px; border: 1.5px dashed #cbd5e6; border-radius: 10px; color: #7b879d; background: #fbfcff; text-align: center; cursor: pointer; transition: border-color .18s,background .18s; }
+.csv-file-drop:hover,.csv-file-drop:focus-within { border-color: var(--blue); background: #f5f7ff; }
+.csv-file-drop input { width: 100%; max-width: 260px; color: #77849b; font-size: 9px; }
+.csv-file-drop input::file-selector-button { min-height: 32px; margin-right: 8px; padding: 0 10px; border: 1px solid #dce3ef; border-radius: 6px; color: var(--navy); background: #fff; font-weight: 700; cursor: pointer; }
+.csv-file-drop strong { max-width: 100%; overflow-wrap: anywhere; color: var(--navy); font-size: 11px; }
+.csv-file-drop > span:last-of-type { font-size: 8px; }
+.csv-file-icon { display: grid; place-items: center; width: 47px; height: 47px; border-radius: 12px; color: var(--blue); background: #edf1ff; }
+.csv-action-row { justify-content: stretch; }
+.csv-action-row .btn { width: 100%; }
+.csv-summary-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; }
+.csv-summary-card { display: grid; gap: 7px; min-width: 0; padding: 13px; border: 1px solid #e4e9f1; border-radius: 9px; background: #fbfcff; }
+.csv-summary-card span { color: #77849b; font-size: 8px; font-weight: 800; line-height: 1.4; }
+.csv-summary-card strong { color: var(--navy); font: 700 25px/1 'Outfit',sans-serif; }
+.csv-summary-ready { border-color: #d1eadb; background: #f3fbf6; }
+.csv-summary-skipped { border-color: #e2e7ef; background: #f8f9fc; }
+.csv-summary-errors { border-color: #f0d9dd; background: #fff7f8; }
+.csv-review-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.csv-review-heading strong { color: var(--navy); font-size: 10px; }
+.csv-review-heading span { color: #8b96a9; font-size: 8px; }
+.csv-review-list { display: grid; max-height: 470px; overflow: auto; border-top: 1px solid #edf0f5; }
+.csv-review-row { display: grid; grid-template-columns: 22px minmax(0,1fr) auto; align-items: start; gap: 9px; padding: 11px 2px; border-bottom: 1px solid #edf0f5; }
+.csv-row-status { display: grid; place-items: center; width: 21px; height: 21px; border-radius: 50%; color: #1b8259; background: #e9f8ef; }
+.csv-row-skipped .csv-row-status { color: #68758b; background: #f0f2f6; }
+.csv-row-error .csv-row-status { color: #b33349; background: #fff0f2; }
+.csv-review-row > div { display: grid; gap: 4px; min-width: 0; }
+.csv-review-row strong { color: var(--navy); font-size: 9px; overflow-wrap: anywhere; }
+.csv-review-row div span { color: #8792a6; font-size: 8px; line-height: 1.55; }
+.csv-review-row > small { color: #21815a; font-size: 7px; font-weight: 900; white-space: nowrap; }
+.csv-row-skipped > small { color: #78849a; }
+.csv-row-error > small { color: #b33349; }
+.csv-review-guidance { margin: 0; padding: 11px 12px; border: 1px solid #f0d9dd; border-radius: 8px; color: #a33a4c; background: #fff7f8; font-size: 9px; line-height: 1.6; }
+.csv-import-confirm { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid #edf0f5; }
+.csv-import-confirm p { margin: 0; color: #718099; font-size: 9px; line-height: 1.6; }
+.csv-import-confirm .btn { justify-self: start; }
+.csv-success-panel { display: grid; justify-items: center; gap: 9px; padding: 34px 16px; text-align: center; }
+.csv-success-panel > span { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; color: #178257; background: #e9f8ef; }
+.csv-success-panel strong { color: var(--navy); font: 700 19px 'Outfit',sans-serif; }
+.csv-success-panel p { max-width: 320px; margin: 0 0 7px; color: #7e8ba1; font-size: 9px; line-height: 1.7; }
+.csv-import-result { align-items: center; }
+@media (max-width: 880px) { .csv-import-layout { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .academic-heading-actions { width: 100%; }.academic-heading-actions .btn { flex: 1 1 auto; justify-content: center; }.csv-summary-grid { gap: 6px; }.csv-summary-card { padding: 10px 8px; }.csv-summary-card strong { font-size: 22px; }.csv-review-row { grid-template-columns: 21px minmax(0,1fr); }.csv-review-row > small { grid-column: 2; }.csv-file-drop { padding: 20px 12px; } }

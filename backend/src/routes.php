@@ -20,6 +20,7 @@ $router->get('/courses', [AcademicController::class, 'catalog']);
 $router->get('/courses/{id}', [AcademicController::class, 'courseDetail']);
 
 // Administrative academic management. Every route enforces administrator access server-side.
+$router->post('/admin/academic/import/csv', [AcademicCsvImportController::class, 'handle']);
 $router->get('/admin/academic/overview', [AcademicController::class, 'overview']);
 $router->get('/admin/academic/structure', [AcademicController::class, 'adminStructure']);
 $router->get('/admin/academic/sessions', [AcademicController::class, 'sessions']);

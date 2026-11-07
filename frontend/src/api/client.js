@@ -107,9 +107,10 @@ export function hasAuthToken() {
 
 async function request(path, options = {}) {
   const token = sessionStorage.getItem(TOKEN_KEY);
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const headers = {
     Accept: 'application/json',
-    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+    ...(options.body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
@@ -133,6 +134,7 @@ async function request(path, options = {}) {
     error.status = response.status;
     if (code) error.code = code;
     if (fields) error.fields = fields;
+    if (data && typeof data === 'object') error.data = data;
     if (code === 'EMAIL_NOT_VERIFIED' && typeof data?.email === 'string') error.email = data.email;
     if (response.status === 401 && token) {
       clearAuthToken();
@@ -149,6 +151,7 @@ export const api = {
   post: (path, body) => request(path, { method: 'POST', body: JSON.stringify(body ?? {}) }),
   patch: (path, body) => request(path, { method: 'PATCH', body: JSON.stringify(body ?? {}) }),
   del: (path, body) => request(path, { method: 'DELETE', ...(body ? { body: JSON.stringify(body) } : {}) }),
+  upload: (path, body) => request(path, { method: 'POST', body }),
 };
 
 export function checkHealth() { return api.get('/health'); }
@@ -203,3 +206,11 @@ export function createCourseOffering(payload) { return api.post('/admin/academic
 export function updateCourseOffering(id, payload) { return api.patch(`/admin/academic/offerings/${id}`, payload); }
 export function archiveCourseOffering(id) { return api.del(`/admin/academic/offerings/${id}`); }
 export function getAcademicStaff() { return api.get('/admin/academic/staff'); }
+
+export function uploadAcademicCsv(file, type, mode = 'preview') {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('type', type);
+  formData.append('mode', mode);
+  return api.upload('/admin/academic/import/csv', formData);
+}

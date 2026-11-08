@@ -17,7 +17,7 @@ CourseHubs is an independently operated academic platform developed for the Ebon
 - PostgreSQL persistence with versioned, automatically applied database migrations.
 - Responsive layouts, accessible navigation, reduced-motion support and animated interface elements.
 
-Resource uploads, moderation, downloads, bookmarks and broader learning workflows are being developed incrementally. Course records and course offerings in the catalogue are now database-driven; resource tabs remain empty until the resource module is released.
+The course resource library supports eligible contributors submitting course materials, past examination questions and model answers; administrator moderation; approved-only publication; and controlled previews and downloads. Broader learning workflows will be developed incrementally. Course records and course offerings in the catalogue are database-driven.
 
 ## Technology
 
@@ -158,24 +158,33 @@ Render's Docker startup runs migrations before Apache starts. Local development 
 
 The resource library supports course materials, past examination questions and model answers. Signed-in students can view approved resources from each course page. Resource contributions are restricted to administrators and accounts with an approved academic role or an active lecturer/representative/adviser assignment. Non-administrator submissions enter moderation; administrators can approve or reject them with a review note.
 
-Uploaded documents are stored in a **private Cloudflare R2 bucket**, not on Render's ephemeral filesystem or in PostgreSQL. PostgreSQL stores resource metadata and the R2 object key. PDF files can be previewed through short-lived signed URLs; PDF, DOCX and PPTX files can be downloaded. The initial upload limit is 25 MB.
+Uploaded documents are stored in a **private Neon Object Storage bucket**, not on Render's ephemeral filesystem or in PostgreSQL. PostgreSQL stores resource metadata and the object key. PDF files can be previewed through short-lived signed URLs; PDF, DOCX and PPTX files can be downloaded. The initial upload limit is 25 MB.
 
-### Cloudflare R2 configuration
+### Neon Object Storage configuration
 
-1. In Cloudflare, create an R2 bucket named `coursehubs-resources` (or choose another private bucket name).
-2. Create an R2 API token with Object Read & Write permissions scoped to that bucket.
-3. Copy the account ID, access key ID and secret access key.
-4. Add these variables to the Render `coursehubs-api` environment:
+Create a private bucket named `coursehubs-resources` on the same Neon branch used by the CourseHubs backend. Create a Neon storage credential with both `storage:read` and `storage:write` permissions. Neon Object Storage uses the S3-compatible API with AWS Signature Version 4 and path-style addressing.
 
-   - `R2_ACCOUNT_ID`
-   - `R2_ACCESS_KEY_ID`
-   - `R2_SECRET_ACCESS_KEY`
-   - `R2_BUCKET`
+Add the following variables to the Render `coursehubs-api` environment:
 
-5. Keep the bucket private. Do not configure a public bucket URL or expose the secret key in the frontend.
-6. Redeploy the backend. Migration `0006_resource_library.sql` runs automatically.
+| Variable | Value |
+|---|---|
+| `AWS_ENDPOINT_URL_S3` | The branch-specific S3 endpoint shown by Neon. |
+| `AWS_ACCESS_KEY_ID` | The credential's `token_id` (starts with `nak_live_`). |
+| `AWS_SECRET_ACCESS_KEY` | The credential's `s3_secret_access_key` (starts with `nsk_live_`). |
+| `AWS_REGION` | The region shown by Neon, for example `us-east-2`. |
+| `AWS_BUCKET_NAME` | `coursehubs-resources`. |
 
-The upload interface reports when storage has not yet been configured. Existing academic records are unaffected by this migration.
+For the current CourseHubs Neon branch, the non-secret values are:
+
+```env
+AWS_ENDPOINT_URL_S3=https://br-cold-tree-bdpxjwnt.storage.c-8.us-east-2.aws.neon.tech
+AWS_REGION=us-east-2
+AWS_BUCKET_NAME=coursehubs-resources
+```
+
+Enter the access key ID and secret access key directly in Render. Do not send them in chat, commit them to Git, or expose them in a `VITE_` frontend variable. Do not use a Neon API token (`nt_live_...`) as an S3 access key. Keep the bucket private; the backend generates short-lived signed URLs after checking the user's access to each resource.
+
+The storage adapter uses the PHP cURL extension and native PHP HMAC functions; no additional Composer package is required. This provider switch does not change the PostgreSQL schema or require a new database migration. The existing `0006_resource_library.sql` migration creates the resource metadata tables and is applied automatically on a fresh deployment if it has not already been applied.
 
 ### Resource routes
 

@@ -19,7 +19,7 @@ $router->get('/academic-structure', [AcademicController::class, 'publicStructure
 $router->get('/courses', [AcademicController::class, 'catalog']);
 $router->get('/courses/{id}', [AcademicController::class, 'courseDetail']);
 
-// Signed-in course resource library. Private files are served through short-lived R2 links.
+// Signed-in course resource library. Private files use short-lived Neon Object Storage links.
 $router->get('/resources/access', [ResourceController::class, 'access']);
 $router->get('/resources/courses', [ResourceController::class, 'courseOptions']);
 $router->get('/resources/mine', [ResourceController::class, 'mine']);

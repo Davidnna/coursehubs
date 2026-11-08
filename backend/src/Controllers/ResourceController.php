@@ -15,26 +15,88 @@ final class ResourceController
     public static function access(): void
     {
         $user = Auth::requireUser();
-        $canUpload = self::canUpload($user);
+        $canUploadAssessments = self::canUploadAssessmentTypes((int) $user['id']);
+        $canUpload = self::isAdmin($user) || $canUploadAssessments;
+        $allowedTypes = $canUpload ? ['material'] : [];
+        if ($canUploadAssessments) {
+            $allowedTypes = ['material', 'past_question', 'model_answer'];
+        }
+        $storageReady = ObjectStorage::isConfigured();
+
         Response::json([
             'can_upload' => $canUpload,
-            'storage_ready' => ObjectStorage::isConfigured(),
+            'can_upload_assessments' => $canUploadAssessments,
+            'allowed_types' => $allowedTypes,
+            'storage_ready' => $storageReady,
             'message' => !$canUpload
                 ? 'Resource contributions are available to approved course representatives, course advisers, lecturers and administrators.'
-                : (!ObjectStorage::isConfigured() ? 'Resource uploads are temporarily unavailable. Please contact CourseHubs support.' : 'You can submit academic resources for review.'),
+                : (!$storageReady
+                    ? 'Resource uploads are temporarily unavailable. Please contact CourseHubs support.'
+                    : (!$canUploadAssessments
+                        ? 'You can submit course materials. Past questions and model answers can only be submitted by lecturers, course representatives and course advisers.'
+                        : 'You can submit academic resources for review.')),
         ]);
     }
 
     public static function courseOptions(): void
     {
-        Auth::requireUser();
-        $stmt = Database::connection()->query(
+        $user = Auth::requireUser();
+        $db = Database::connection();
+
+        // Students only see courses offered by their department for their
+        // current level in the active academic session. This scope is repeated in
+        // upload() so a client cannot bypass it by submitting an arbitrary course ID.
+        if (($user['account_type'] ?? '') === 'student') {
+            $profileStmt = $db->prepare(
+                "SELECT department_id, level FROM users WHERE id = ? AND account_type = 'student' AND deleted_at IS NULL LIMIT 1"
+            );
+            $profileStmt->execute([(int) $user['id']]);
+            $profile = $profileStmt->fetch();
+
+            if (!$profile || empty($profile['department_id']) || empty($profile['level'])) {
+                Response::json([
+                    'courses' => [],
+                    'scope' => 'student_department_level',
+                    'message' => 'Your academic profile is missing a department or current level. Please contact your department administrator to update it before uploading a resource.',
+                ]);
+            }
+
+            $stmt = $db->prepare(
+                "SELECT DISTINCT c.id, c.current_code AS code, c.title, d.name AS department_name
+                 FROM course_offerings co
+                 JOIN courses c ON c.id = co.course_id
+                 JOIN programmes p ON p.id = co.programme_id
+                 JOIN departments d ON d.id = p.department_id
+                 WHERE p.department_id = ? AND co.level = ?
+                   AND co.academic_session_id = (SELECT id FROM academic_sessions WHERE is_current IS TRUE LIMIT 1)
+                   AND co.deleted_at IS NULL
+                   AND p.is_active IS TRUE AND d.is_active IS TRUE
+                   AND c.deleted_at IS NULL AND c.is_active IS TRUE AND c.status = 'active'
+                 ORDER BY c.current_code, c.title"
+            );
+            $stmt->execute([
+                (int) $profile['department_id'],
+                (int) $profile['level'],
+            ]);
+            $courses = $stmt->fetchAll();
+            Response::json([
+                'courses' => $courses,
+                'scope' => 'student_department_level',
+                'message' => $courses === []
+                    ? 'No courses are currently offered by your department for your current level in the active academic session. Please contact your department administrator if you think this is incorrect.'
+                    : null,
+            ]);
+        }
+
+        // Staff contributors retain the broader catalogue. Their resource types
+        // are still constrained by the server-side academic-role checks.
+        $stmt = $db->query(
             "SELECT c.id, c.current_code AS code, c.title, d.name AS department_name
              FROM courses c LEFT JOIN departments d ON d.id = c.department_id
              WHERE c.deleted_at IS NULL AND c.is_active IS TRUE AND c.status = 'active'
              ORDER BY c.current_code, c.title"
         );
-        Response::json(['courses' => $stmt->fetchAll()]);
+        Response::json(['courses' => $stmt->fetchAll(), 'scope' => 'staff_catalogue', 'message' => null]);
     }
 
     public static function upload(): void
@@ -71,9 +133,23 @@ final class ResourceController
         if (!in_array($type, self::TYPES, true)) Response::error('Choose a valid resource category.', 422);
 
         $db = Database::connection();
+        if ($type !== 'material' && !self::canUploadAssessmentTypes((int) $user['id'])) {
+            Response::error(
+                'Past questions and model answers can only be submitted by lecturers, course representatives and course advisers.',
+                403,
+                ['code' => 'ASSESSMENT_RESOURCE_ROLE_REQUIRED']
+            );
+        }
         $course = $db->prepare('SELECT id FROM courses WHERE id = ? AND deleted_at IS NULL AND is_active IS TRUE AND status = \'active\' LIMIT 1');
         $course->execute([$courseId]);
         if (!$course->fetchColumn()) Response::error('Choose an active course.', 422, ['fields' => ['course_id' => 'Choose an active course.']]);
+        if (($user['account_type'] ?? '') === 'student' && !self::studentCanUploadCourse($db, (int) $user['id'], $courseId)) {
+            Response::error(
+                'Choose a course currently offered by your department for your current level in the active academic session.',
+                422,
+                ['fields' => ['course_id' => 'Choose a course offered by your department for your current level.']]
+            );
+        }
         if ($sessionId > 0) {
             $session = $db->prepare('SELECT id FROM academic_sessions WHERE id = ? LIMIT 1');
             $session->execute([$sessionId]);
@@ -249,19 +325,53 @@ final class ResourceController
         Response::json(['message' => 'Resource removed.']);
     }
 
-    private static function canUpload(array $user): bool
+    private static function canUploadAssessmentTypes(int $userId): bool
     {
-        if (self::isAdmin($user)) return true;
-        $id = (int) $user['id'];
         $stmt = Database::connection()->prepare(
             "SELECT (
-                EXISTS (SELECT 1 FROM role_requests WHERE user_id = ? AND status = 'approved')
+                EXISTS (
+                    SELECT 1 FROM role_requests
+                    WHERE user_id = ? AND status = 'approved'
+                      AND requested_role IN ('course_rep', 'course_adviser', 'lecturer')
+                )
                 OR EXISTS (SELECT 1 FROM level_reps WHERE user_id = ? AND status = 'active')
                 OR EXISTS (SELECT 1 FROM level_advisers WHERE user_id = ? AND status = 'active')
-                OR EXISTS (SELECT 1 FROM course_offering_lecturers col JOIN course_offerings co ON co.id = col.course_offering_id WHERE col.lecturer_user_id = ? AND co.deleted_at IS NULL)
+                OR EXISTS (
+                    SELECT 1 FROM course_offering_lecturers col
+                    JOIN course_offerings co ON co.id = col.course_offering_id
+                    WHERE col.lecturer_user_id = ? AND co.deleted_at IS NULL
+                )
              ) AS allowed"
         );
-        $stmt->execute([$id, $id, $id, $id]);
+        $stmt->execute([$userId, $userId, $userId, $userId]);
+        return filter_var($stmt->fetchColumn(), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    private static function canUpload(array $user): bool
+    {
+        return self::isAdmin($user) || self::canUploadAssessmentTypes((int) $user['id']);
+    }
+
+    private static function studentCanUploadCourse(PDO $db, int $userId, int $courseId): bool
+    {
+        $stmt = $db->prepare(
+            "SELECT EXISTS (
+                SELECT 1
+                FROM users u
+                JOIN departments d ON d.id = u.department_id
+                JOIN programmes p ON p.department_id = d.id
+                JOIN course_offerings co ON co.programme_id = p.id AND co.level = u.level
+                JOIN courses c ON c.id = co.course_id
+                WHERE u.id = ? AND u.account_type = 'student'
+                  AND u.department_id IS NOT NULL AND u.level IS NOT NULL
+                  AND co.course_id = ?
+                  AND co.academic_session_id = (SELECT id FROM academic_sessions WHERE is_current IS TRUE LIMIT 1)
+                  AND co.deleted_at IS NULL
+                  AND p.is_active IS TRUE AND d.is_active IS TRUE
+                  AND c.deleted_at IS NULL AND c.is_active IS TRUE AND c.status = 'active'
+            )"
+        );
+        $stmt->execute([$userId, $courseId]);
         return filter_var($stmt->fetchColumn(), FILTER_VALIDATE_BOOLEAN);
     }
 

@@ -542,7 +542,7 @@ final class AcademicController
                 LEFT JOIN programmes p ON p.id = co.programme_id
                 LEFT JOIN departments d ON d.id = COALESCE(p.department_id, c.department_id)
                 LEFT JOIN faculties f ON f.id = d.faculty_id
-                WHERE ' . implode(' AND ', $where) . '\n                ORDER BY co.level, co.semester, c.current_code LIMIT 250';
+                WHERE ' . implode(' AND ', $where) . ' ORDER BY co.level, co.semester, c.current_code LIMIT 250';
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
         Response::json(['courses' => $stmt->fetchAll(), 'session' => $session]);

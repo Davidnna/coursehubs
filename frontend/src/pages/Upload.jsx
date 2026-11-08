@@ -27,6 +27,8 @@ export default function Upload() {
   const [sessions, setSessions] = useState([]);
   const [submissions, setSubmissions] = useState([]);
   const [pastQuestions, setPastQuestions] = useState([]);
+  const [courseScopeMessage, setCourseScopeMessage] = useState('');
+  const [courseScope, setCourseScope] = useState('');
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ course_id: '', academic_session_id: '', title: '', type: 'material', answer_to_upload_id: '' });
   const [file, setFile] = useState(null);
@@ -47,9 +49,16 @@ export default function Upload() {
         setAccess(accessResult);
         setSessions(Array.isArray(structure.sessions) ? structure.sessions : []);
         setCourses(Array.isArray(catalogue.courses) ? catalogue.courses : []);
+        setCourseScopeMessage(catalogue.message || '');
+        setCourseScope(catalogue.scope || '');
         setSubmissions(Array.isArray(mine.submissions) ? mine.submissions : []);
         const current = (structure.sessions || []).find((session) => Number(session.is_current) === 1 || session.is_current === true);
-        setForm((previous) => ({ ...previous, academic_session_id: current ? String(current.id) : '' }));
+        const allowedTypes = Array.isArray(accessResult.allowed_types) ? accessResult.allowed_types : resourceTypes.map((type) => type.value);
+        setForm((previous) => ({
+          ...previous,
+          academic_session_id: current ? String(current.id) : '',
+          type: allowedTypes.includes(previous.type) ? previous.type : (allowedTypes[0] || 'material'),
+        }));
       })
       .catch((requestError) => { if (active) setError(requestError.message || 'The contribution workspace could not be loaded.'); })
       .finally(() => { if (active) setLoading(false); });
@@ -57,6 +66,8 @@ export default function Upload() {
   }, []);
 
   const selectedCourse = useMemo(() => courses.find((course) => String(course.id) === form.course_id), [courses, form.course_id]);
+  const allowedTypes = Array.isArray(access?.allowed_types) ? access.allowed_types : resourceTypes.map((type) => type.value);
+  const visibleResourceTypes = resourceTypes.filter((type) => allowedTypes.includes(type.value));
 
   useEffect(() => {
     let active = true;
@@ -119,10 +130,11 @@ export default function Upload() {
         {!access?.can_upload ? <div className="upload-locked-note"><Icon name="lock" size={19}/><span>{access?.message || 'Resource contributions are limited to approved course representatives, course advisers, lecturers and administrators. Contact CourseHubs support if you believe you should have access.'}</span></div>
           : !access?.storage_ready ? <div className="upload-locked-note"><Icon name="info" size={19}/><span>{access?.message || 'Resource uploads are temporarily unavailable. Please contact CourseHubs support.'}</span></div>
           : <form className="upload-form-preview resource-upload-form" onSubmit={submit}>
-            <div className="field"><label htmlFor="resource-course">Course</label><select id="resource-course" required value={form.course_id} onChange={(event) => update('course_id', event.target.value)}><option value="">Select a course</option>{courses.map((course) => <option key={course.id} value={course.id}>{course.code} — {course.title}</option>)}</select>{courses.length === 0 && <small className="field-hint">No courses are currently published for the active academic session.</small>}</div>
+            <div className="field"><label htmlFor="resource-course">Course</label><select id="resource-course" required value={form.course_id} onChange={(event) => update('course_id', event.target.value)}><option value="">Select a course</option>{courses.map((course) => <option key={course.id} value={course.id}>{course.code} — {course.title}</option>)}</select>{courses.length === 0 && <small className="field-hint">{courseScopeMessage || 'No active courses are currently available.'}</small>}{courses.length > 0 && courseScope === 'student_department_level' && <small className="field-hint">Showing courses offered by your department for your current level in the active academic session.</small>}</div>
             <div className="field"><label htmlFor="resource-session">Academic session</label><select id="resource-session" value={form.academic_session_id} onChange={(event) => update('academic_session_id', event.target.value)}><option value="">Not session-specific</option>{sessions.map((session) => <option key={session.id} value={session.id}>{session.name}{Number(session.is_current) === 1 || session.is_current === true ? ' · Current' : ''}</option>)}</select></div>
             <div className="field"><label htmlFor="resource-title">Resource title</label><input id="resource-title" maxLength={200} required placeholder="e.g. Introduction to Data Structures — Lecture Notes" value={form.title} onChange={(event) => update('title', event.target.value)}/></div>
-            <div className="field"><label htmlFor="resource-type">Resource category</label><select id="resource-type" value={form.type} onChange={(event) => update('type', event.target.value)}>{resourceTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></div>
+            <div className="field"><label htmlFor="resource-type">Resource category</label><select id="resource-type" value={form.type} onChange={(event) => update('type', event.target.value)}>{visibleResourceTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></div>
+            {!access?.can_upload_assessments && <p className="resource-course-hint"><Icon name="info" size={15}/> Past questions and model answers are restricted to lecturers, course representatives and course advisers.</p>}
             {form.type === 'model_answer' && <div className="field"><label htmlFor="resource-answer-to">Past question being answered <span className="optional">(optional)</span></label><select id="resource-answer-to" value={form.answer_to_upload_id} onChange={(event) => update('answer_to_upload_id', event.target.value)}><option value="">Not linked to a specific past question</option>{pastQuestions.map((question) => <option key={question.id} value={question.id}>{question.title}</option>)}</select><small className="field-hint">Only approved past questions for the selected course are listed.</small></div>}
             <div className="field"><label htmlFor="resource-file">Attach document</label><div className="resource-file-drop"><span className="csv-file-icon"><Icon name="upload" size={25}/></span><strong>{file ? file.name : 'Choose a document to upload'}</strong><small>{file ? formatBytes(file.size) : 'PDF, DOCX or PPTX · Maximum 25 MB'}</small><input id="resource-file" type="file" accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation" required onChange={(event) => setFile(event.target.files?.[0] || null)}/></div></div>
             {selectedCourse && <p className="resource-course-hint"><Icon name="book" size={15}/>{selectedCourse.code} will be the resource's course reference.</p>}

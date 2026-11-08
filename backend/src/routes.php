@@ -19,6 +19,17 @@ $router->get('/academic-structure', [AcademicController::class, 'publicStructure
 $router->get('/courses', [AcademicController::class, 'catalog']);
 $router->get('/courses/{id}', [AcademicController::class, 'courseDetail']);
 
+// Signed-in course resource library. Private files are served through short-lived R2 links.
+$router->get('/resources/access', [ResourceController::class, 'access']);
+$router->get('/resources/courses', [ResourceController::class, 'courseOptions']);
+$router->get('/resources/mine', [ResourceController::class, 'mine']);
+$router->post('/resources', [ResourceController::class, 'upload']);
+$router->get('/resources/{id}/file', [ResourceController::class, 'fileUrl']);
+$router->delete('/resources/{id}', [ResourceController::class, 'delete']);
+$router->get('/courses/{id}/resources', [ResourceController::class, 'forCourse']);
+$router->get('/admin/resources', [ResourceController::class, 'adminIndex']);
+$router->patch('/admin/resources/{id}/moderation', [ResourceController::class, 'moderate']);
+
 // Administrative academic management. Every route enforces administrator access server-side.
 $router->post('/admin/academic/import/csv', [AcademicCsvImportController::class, 'handle']);
 $router->get('/admin/academic/overview', [AcademicController::class, 'overview']);

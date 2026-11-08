@@ -208,6 +208,22 @@ export function updateCourseOffering(id, payload) { return api.patch(`/admin/aca
 export function archiveCourseOffering(id) { return api.del(`/admin/academic/offerings/${id}`); }
 export function getAcademicStaff() { return api.get('/admin/academic/staff'); }
 
+// Course resource library and moderation.
+export function getResourceAccess() { return api.get('/resources/access'); }
+export function getResourceCourses() { return api.get('/resources/courses'); }
+export function createResource(formData) { return api.upload('/resources', formData); }
+export function getMyResources() { return api.get('/resources/mine'); }
+export function getCourseResources(courseId, type = '') {
+  const params = new URLSearchParams();
+  if (type) params.set('type', type);
+  const query = params.toString();
+  return api.get(`/courses/${encodeURIComponent(courseId)}/resources${query ? `?${query}` : ''}`);
+}
+export function getResourceFileUrl(id, action = 'download') { return api.get(`/resources/${encodeURIComponent(id)}/file?action=${encodeURIComponent(action)}`); }
+export function getAdminResources(status = 'pending') { return api.get(`/admin/resources?status=${encodeURIComponent(status)}`); }
+export function moderateResource(id, payload) { return api.patch(`/admin/resources/${encodeURIComponent(id)}/moderation`, payload); }
+export function deleteResource(id) { return api.del(`/resources/${encodeURIComponent(id)}`); }
+
 export function uploadAcademicCsv(file, type, mode = 'preview') {
   const formData = new FormData();
   formData.append('file', file);

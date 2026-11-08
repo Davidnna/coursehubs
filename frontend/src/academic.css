@@ -172,3 +172,53 @@
 .csv-import-result { align-items: center; }
 @media (max-width: 880px) { .csv-import-layout { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .academic-heading-actions { width: 100%; }.academic-heading-actions .btn { flex: 1 1 auto; justify-content: center; }.csv-summary-grid { gap: 6px; }.csv-summary-card { padding: 10px 8px; }.csv-summary-card strong { font-size: 22px; }.csv-review-row { grid-template-columns: 21px minmax(0,1fr); }.csv-review-row > small { grid-column: 2; }.csv-file-drop { padding: 20px 12px; } }
+
+/* Phase 2: moderated course resource library */
+.resource-success { display:flex; align-items:flex-start; gap:10px; margin:0 0 18px; padding:13px 15px; border:1px solid #cfe8d9; border-radius:10px; color:#176b4a; background:#effaf3; font-size:11px; line-height:1.6; }
+.resource-success svg { flex:0 0 auto; }
+.resource-upload-form .field select,.resource-upload-form .field input { width:100%; min-height:46px; padding:11px 13px; border:1px solid #dce2ed; border-radius:9px; background:#fff; color:var(--navy); font-size:11px; font-weight:600; }
+.resource-upload-form .field select:focus,.resource-upload-form .field input:focus { outline:2px solid rgba(66,86,244,.18); border-color:var(--blue); }
+.resource-file-drop { display:grid; justify-items:center; gap:8px; padding:22px 14px; border:1.5px dashed #bbc7de; border-radius:12px; background:#f8faff; text-align:center; }
+.resource-file-drop strong { max-width:100%; color:var(--navy); font-size:11px; overflow-wrap:anywhere; }
+.resource-file-drop small { color:#8793a8; font-size:9px; }
+.resource-file-drop input { max-width:100%; font-size:9px; }
+.resource-course-hint { display:flex; align-items:center; gap:7px; color:#687795; font-size:9px; line-height:1.5; }
+.resource-submissions { margin-top:30px; padding:24px; border:1px solid var(--line); border-radius:15px; background:#fff; }
+.resource-section-heading,.resource-panel-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin-bottom:15px; }
+.resource-section-heading h2,.resource-panel-heading h2 { margin:5px 0 0; color:var(--navy); font:700 23px 'Outfit',sans-serif; }
+.resource-section-heading > span,.resource-panel-heading > span { color:#8a96aa; font-size:9px; }
+.resource-submission-list,.resource-moderation-list,.course-resource-list { display:grid; gap:10px; }
+.resource-submission-row,.course-resource-row { display:flex; align-items:center; gap:12px; min-width:0; padding:13px; border:1px solid #e8edf4; border-radius:10px; background:#fff; }
+.resource-file-symbol { display:grid; place-items:center; flex:0 0 40px; width:40px; height:40px; border-radius:10px; color:var(--blue); background:#edf1ff; }
+.resource-submission-copy,.course-resource-copy,.resource-moderation-title { display:grid; gap:4px; flex:1; min-width:0; }
+.resource-submission-copy strong,.course-resource-copy strong,.resource-moderation-title strong { color:var(--navy); font-size:11px; overflow-wrap:anywhere; }
+.resource-submission-copy span,.course-resource-copy span,.resource-moderation-title span { color:#7e8ba1; font-size:9px; line-height:1.5; overflow-wrap:anywhere; }
+.resource-submission-copy small,.course-resource-copy small { color:#9aa4b5; font-size:8px; line-height:1.5; }
+.resource-submission-copy > small { color:#a33a4c; }
+.resource-status { flex:0 0 auto; padding:6px 9px; border-radius:20px; color:#7a8497; background:#f0f2f6; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+.resource-status-pending { color:#8a6414; background:#fff6df; }
+.resource-status-approved { color:#176b4a; background:#e9f8ef; }
+.resource-status-rejected { color:#a33348; background:#fff0f2; }
+.resource-empty.compact-resource-empty { min-height:170px; padding:25px 16px; }
+.resource-empty.compact-resource-empty h2 { font-size:21px; }
+.resource-empty.compact-resource-empty p { max-width:480px; }
+.resource-empty.compact-resource-empty .btn { margin-top:8px; }
+.resource-moderation-toolbar { display:flex; align-items:center; gap:12px; margin:18px 0; padding:13px 15px; border:1px solid #e5eaf2; border-radius:10px; background:#fff; }
+.resource-moderation-toolbar label { color:#64718a; font-size:10px; font-weight:800; }
+.resource-moderation-toolbar select { min-height:38px; padding:7px 11px; border:1px solid #dce2ed; border-radius:8px; color:var(--navy); background:#fff; font-size:10px; }
+.resource-moderation-toolbar > span { margin-left:auto; color:#8b96a9; font-size:9px; }
+.resource-moderation-card { display:grid; gap:12px; padding:18px; border:1px solid #e5eaf2; border-radius:12px; background:#fff; }
+.resource-moderation-card-top { display:flex; align-items:center; gap:11px; min-width:0; }
+.resource-moderation-meta { display:grid; gap:4px; padding-left:51px; color:#7f8ba0; font-size:9px; line-height:1.5; overflow-wrap:anywhere; }
+.resource-moderation-actions { display:flex; flex-wrap:wrap; gap:8px; padding-left:51px; }
+.resource-reject-row { display:grid; gap:7px; padding:12px; border-radius:9px; background:#f8f9fc; }
+.resource-reject-row label { color:#596781; font-size:9px; font-weight:800; }
+.resource-reject-row textarea { width:100%; min-height:62px; resize:vertical; padding:10px; border:1px solid #dce2ed; border-radius:8px; color:var(--navy); background:#fff; font:inherit; font-size:10px; line-height:1.5; }
+.resource-reject-button { justify-self:start; color:#a33348; border-color:#edcbd2; }
+.resource-review-note { margin:0; padding:10px 12px; border-radius:8px; color:#8d3446; background:#fff4f5; font-size:9px; line-height:1.6; }
+.course-resource-panel { margin-top:17px; }
+.course-resource-row { align-items:flex-start; }
+.course-resource-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:7px; flex:0 0 auto; }
+.course-resource-actions .btn { min-height:34px; }
+@media (max-width:760px) { .resource-submission-row,.course-resource-row { align-items:flex-start; flex-wrap:wrap; }.resource-status { margin-left:auto; }.course-resource-actions { width:100%; padding-left:52px; justify-content:flex-start; }.resource-moderation-meta,.resource-moderation-actions { padding-left:0; }.resource-moderation-toolbar { flex-wrap:wrap; }.resource-submissions { padding:17px; } }
+@media (max-width:480px) { .resource-file-symbol { flex-basis:34px; width:34px; height:34px; }.resource-moderation-card { padding:13px; }.resource-moderation-title strong { font-size:10px; }.resource-section-heading h2,.resource-panel-heading h2 { font-size:20px; }.course-resource-actions { padding-left:0; }.resource-status { font-size:7px; } }

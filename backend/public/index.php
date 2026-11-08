@@ -53,6 +53,7 @@ require __DIR__ . '/../src/Http/Response.php';
 require __DIR__ . '/../src/Support/Validator.php';
 require __DIR__ . '/../src/Support/Names.php';
 require __DIR__ . '/../src/Support/EmailQuota.php';
+require __DIR__ . '/../src/Support/ObjectStorage.php';
 require __DIR__ . '/../src/Support/Mailer.php';
 require __DIR__ . '/../src/Security/Jwt.php';
 require __DIR__ . '/../src/Security/Auth.php';
@@ -62,6 +63,7 @@ require __DIR__ . '/../src/Controllers/GoogleAuthController.php';
 require __DIR__ . '/../src/Controllers/AcademicSessionController.php';
 require __DIR__ . '/../src/Controllers/AcademicController.php';
 require __DIR__ . '/../src/Controllers/AcademicCsvImportController.php';
+require __DIR__ . '/../src/Controllers/ResourceController.php';
 
 Config::load(__DIR__ . '/../.env');
 

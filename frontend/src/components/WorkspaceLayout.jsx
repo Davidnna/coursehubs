@@ -9,6 +9,7 @@ const workspaceNav = [
   { to: '/catalog', label: 'Course library', icon: 'book' },
   { to: '/upload', label: 'Contribute resources', icon: 'upload' },
   { to: '/admin/academics', label: 'Academic management', icon: 'school', adminOnly: true },
+  { to: '/admin/resources', label: 'Resource moderation', icon: 'shield', adminOnly: true },
   { to: '/account', label: 'Account settings', icon: 'user' },
 ];
 

@@ -152,3 +152,35 @@ Vite prints the local frontend address, normally `http://localhost:5173`.
 Database structure is managed by versioned SQL files in `backend/database/migrations/`. The backend migration runner records each applied migration and its SHA-256 checksum. It applies pending migrations in order, serialises concurrent startup attempts with a PostgreSQL advisory lock, and stops deployment if a migration fails. Applied migration files must not be edited; add a new numbered migration for every subsequent database change.
 
 Render's Docker startup runs migrations before Apache starts. Local development uses the same migration runner through `backend/bin/dev-server.php`. A fresh database is initialised automatically; do not manually execute schema SQL in the database console.
+
+
+## Course resources (Phase 2)
+
+The resource library supports course materials, past examination questions and model answers. Signed-in students can view approved resources from each course page. Resource contributions are restricted to administrators and accounts with an approved academic role or an active lecturer/representative/adviser assignment. Non-administrator submissions enter moderation; administrators can approve or reject them with a review note.
+
+Uploaded documents are stored in a **private Cloudflare R2 bucket**, not on Render's ephemeral filesystem or in PostgreSQL. PostgreSQL stores resource metadata and the R2 object key. PDF files can be previewed through short-lived signed URLs; PDF, DOCX and PPTX files can be downloaded. The initial upload limit is 25 MB.
+
+### Cloudflare R2 configuration
+
+1. In Cloudflare, create an R2 bucket named `coursehubs-resources` (or choose another private bucket name).
+2. Create an R2 API token with Object Read & Write permissions scoped to that bucket.
+3. Copy the account ID, access key ID and secret access key.
+4. Add these variables to the Render `coursehubs-api` environment:
+
+   - `R2_ACCOUNT_ID`
+   - `R2_ACCESS_KEY_ID`
+   - `R2_SECRET_ACCESS_KEY`
+   - `R2_BUCKET`
+
+5. Keep the bucket private. Do not configure a public bucket URL or expose the secret key in the frontend.
+6. Redeploy the backend. Migration `0006_resource_library.sql` runs automatically.
+
+The upload interface reports when storage has not yet been configured. Existing academic records are unaffected by this migration.
+
+### Resource routes
+
+- `/upload` — eligible contributor upload form and personal submission history.
+- `/admin/resources` — administrator moderation queue.
+- Course detail pages — approved materials, past questions and model answers.
+
+The resource API enforces authentication, contributor eligibility, file type and size checks, private storage, approved-only visibility and administrator moderation. Technical failures are written to server logs; user-facing responses remain generic.

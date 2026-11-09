@@ -14,7 +14,7 @@ const ERROR_MESSAGES = {
   VERIFICATION_EXPIRED: 'This verification link has expired. Request a new one.',
   RESET_TOKEN_EXPIRED: 'This password-reset link is invalid or has expired. Request a new one.',
   CSV_EMPTY: 'This CSV contains only column headings and no records. Add at least one row, save the file, and preview it again.',
-  ACADEMIC_CORRECTION_PENDING: 'You already have an academic information request awaiting review. Track its status on the Academic information page.',
+  ACADEMIC_CORRECTION_PENDING: 'You already have an academic information request awaiting review. Track its status in Account settings.',
 };
 
 const STATUS_MESSAGES = {
@@ -44,7 +44,7 @@ const FIELD_FALLBACKS = {
   level: 'Choose a valid academic level.',
   expected_graduation_session_id: 'Choose an expected graduation session.',
   department_id: 'Choose your department.',
-  programme_id: 'Choose your programme.',
+  programme_id: 'Choose your degree programme.',
   staff_no: 'Enter your staff number.',
   token: 'This link is invalid or has expired. Request a new one.',
   confirmation: 'Type DELETE to confirm.',
@@ -66,7 +66,7 @@ const KNOWN_FIELD_MESSAGES = {
   level: ['Level is required.', 'Level must be a level between 100 and 500, in steps of 100.'],
   expected_graduation_session_id: ['Expected graduation session is required.'],
   department_id: ['Choose your department.', 'Choose an active department.'],
-  programme_id: ['Choose your programme.', 'Choose a programme under the selected department.'],
+  programme_id: ['Choose your degree programme.', 'Choose a degree programme under the selected department.'],
   staff_no: ['Staff number is required.', 'An account with this staff number already exists.'],
   token: ['This password-reset link is invalid.'],
   confirmation: ['Type DELETE to confirm.'],

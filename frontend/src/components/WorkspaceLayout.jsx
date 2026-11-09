@@ -8,7 +8,6 @@ const workspaceNav = [
   { to: '/dashboard', label: 'Overview', icon: 'grid', end: true },
   { to: '/catalog', label: 'Course library', icon: 'book' },
   { to: '/upload', label: 'Contribute resources', icon: 'upload' },
-  { to: '/academic-information', label: 'Academic information', icon: 'graduation', studentOnly: true },
   { to: '/admin/academics', label: 'Academic management', icon: 'school', adminOnly: true },
   { to: '/admin/resources', label: 'Resource moderation', icon: 'shield', adminOnly: true },
   { to: '/admin/academic-corrections', label: 'Academic information requests', icon: 'document', adminOnly: true },

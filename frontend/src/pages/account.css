@@ -131,5 +131,15 @@
   .workspace-account-name { display: none; }
 }
 
-.account-academic-link { display:inline-flex; align-items:center; gap:7px; color:#4055d8; font-size:11px; font-weight:800; text-decoration:none; }
-.account-academic-link:hover { text-decoration:underline; }
+
+
+/* Academic record and verified correction workflow lives in Account settings. */
+.account-academic-settings { display: grid; gap: 18px; scroll-margin-top: 100px; }
+.account-academic-settings .academic-correction-account-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin: 0; padding-bottom: 17px; border-bottom: 1px solid #edf0f5; }
+.account-academic-settings .academic-correction-account-heading h2 { margin: 5px 0 5px; color: var(--navy); font: 700 22px/1.2 'Outfit',sans-serif; letter-spacing: -.025em; }
+.account-academic-settings .academic-correction-account-heading p { max-width: 650px; margin: 0; color: #6b7890; font-size: 12px; line-height: 1.65; }
+.account-academic-settings .academic-correction-profile,.account-academic-settings .academic-correction-form-card,.account-academic-settings .academic-correction-history { padding: 18px; border-radius: 12px; background: #fbfcfe; }
+.account-academic-settings .academic-correction-section-title h2 { font-size: 19px; }
+.account-academic-settings .academic-correction-current-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+@media (max-width: 600px) { .account-academic-settings { padding: 17px; }.account-academic-settings .academic-correction-account-heading { align-items: flex-start; flex-direction: column; }.account-academic-settings .academic-correction-current-grid { grid-template-columns: 1fr 1fr; }.account-academic-settings .academic-correction-profile,.account-academic-settings .academic-correction-form-card,.account-academic-settings .academic-correction-history { padding: 14px; } }
+@media (max-width: 380px) { .account-academic-settings .academic-correction-current-grid { grid-template-columns: 1fr; } }

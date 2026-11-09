@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Icon from '../components/Icon';
 import { useAuth } from '../auth/AuthContext';
 import {
@@ -11,6 +11,7 @@ import {
   updateAccountProfile,
 } from '../api/client';
 import './account.css';
+import AcademicInformationSettings from './AcademicInformationSettings';
 
 function initials(user) {
   return `${user?.first_name?.[0] || ''}${user?.surname?.[0] || ''}`.toUpperCase() || 'CH';
@@ -64,6 +65,7 @@ function Notice({ kind = 'success', children }) {
 export default function Account() {
   const { user, updateUser, replaceSession, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const photoInputRef = useRef(null);
   const [account, setAccount] = useState(user);
   const [loading, setLoading] = useState(true);
@@ -96,6 +98,14 @@ export default function Account() {
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [updateUser]);
+
+  useEffect(() => {
+    if (loading || location.hash !== '#academic-information') return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById('academic-information')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [loading, location.hash]);
 
   function updateProfileField(field, value) {
     setProfile((current) => ({ ...current, [field]: value }));
@@ -184,7 +194,6 @@ export default function Account() {
       <section className="account-profile-summary">
         <div className="account-avatar-large">{photoData ? <img src={photoData} alt={`${displayName} profile`} /> : <span>{initials(account || user)}</span>}</div>
         <div className="account-summary-copy"><span className="account-summary-label">SIGNED IN AS</span><h2>{displayName || 'CourseHubs member'}</h2><p>{account?.email || user?.email}</p><span className="account-type-chip">{account?.account_type === 'staff' ? 'Staff member' : 'Student'}{account?.level ? ` · ${account.level} level` : ''}</span></div>
-        {account?.account_type === 'student' && <Link to="/academic-information" className="account-academic-link"><Icon name="graduation" size={16}/> Review academic information</Link>}
         <Link to="/dashboard" className="account-back-link"><Icon name="arrowRight" size={16}/> Back to workspace</Link>
       </section>
 
@@ -208,6 +217,8 @@ export default function Account() {
               <div className="account-form-actions"><button className="btn btn-primary" type="submit" disabled={profileBusy}>{profileBusy ? 'Saving changes…' : 'Save profile changes'} <Icon name="arrowRight" size={17}/></button></div>
             </form>
           </section>
+
+          {account?.account_type === 'student' && <AcademicInformationSettings/>}
 
           <section className="account-card" aria-labelledby="account-email-heading">
             <div className="account-card-heading"><div><span className="account-section-kicker">EMAIL ADDRESS</span><h2 id="account-email-heading">Change email address</h2><p>Your new email address must be verified before it replaces the current one.</p></div><span className="account-card-icon"><Icon name="mail" size={20}/></span></div>

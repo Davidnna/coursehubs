@@ -84,7 +84,7 @@ export default function AcademicCorrectionModeration() {
     const selectedDepartment = departments.find((item) => String(item.id) === String(mapping.department_id || ''));
     const selectedProgramme = programmes.find((item) => String(item.id) === String(mapping.programme_id || '') && String(item.department_id) === String(mapping.department_id || ''));
     if (nextStatus === 'approved' && (!selectedDepartment || !selectedProgramme)) {
-      setError('Select an active department and a programme that belongs to it before approving this request.');
+      setError('Select an active department and a degree programme that belongs to it before approving this request.');
       return;
     }
 
@@ -117,7 +117,7 @@ export default function AcademicCorrectionModeration() {
     <main className="standard-page academic-correction-admin-page">
       <div className="breadcrumb"><Link to="/dashboard">My workspace</Link><Icon name="chevronRight" size={14}/><span>Administrator workspace</span><Icon name="chevronRight" size={14}/>Academic information requests</div>
       <div className="academic-page-heading">
-        <div><span className="academic-kicker">STUDENT RECORDS</span><h1>Academic information requests</h1><p>Verify student requests to correct department, programme or current level.</p></div>
+        <div><span className="academic-kicker">STUDENT RECORDS</span><h1>Academic information requests</h1><p>Verify student requests to correct department, degree programme or current level.</p></div>
         <button type="button" className="btn btn-outline" onClick={refresh}><Icon name="refresh" size={16}/> Refresh queue</button>
       </div>
 
@@ -166,14 +166,14 @@ export default function AcademicCorrectionModeration() {
                   <div className="academic-correction-compare-column">
                     <span className="academic-correction-column-label">CURRENT RECORD</span>
                     <div><small>Department</small><strong>{request.current_department_name || 'Not assigned'}</strong></div>
-                    <div><small>Programme</small><strong>{request.current_programme_name || 'Not assigned'}</strong></div>
+                    <div><small>Degree programme</small><strong>{request.current_programme_name || 'Not assigned'}</strong></div>
                     <div><small>Level</small><strong>{request.current_level ? `${request.current_level} Level` : 'Not assigned'}</strong></div>
                   </div>
                   <div className="academic-correction-compare-arrow"><Icon name="arrowRight" size={20}/></div>
                   <div className="academic-correction-compare-column is-requested">
                     <span className="academic-correction-column-label">REQUESTED INFORMATION</span>
                     <div><small>Department</small><strong>{requestedDepartment}</strong></div>
-                    <div><small>Programme</small><strong>{requestedProgramme}</strong></div>
+                    <div><small>Degree programme</small><strong>{requestedProgramme}</strong></div>
                     <div><small>Level</small><strong>{request.requested_level} Level</strong></div>
                   </div>
                 </div>
@@ -192,14 +192,14 @@ export default function AcademicCorrectionModeration() {
                           </select>
                         </div>
                         <div className="field">
-                          <label htmlFor={`review-programme-${request.id}`}>Verified programme</label>
+                          <label htmlFor={`review-programme-${request.id}`}>Verified degree programme</label>
                           <select id={`review-programme-${request.id}`} value={String(mapping.programme_id || '')} onChange={(event) => updateMapping(request.id, 'programme_id', event.target.value)} disabled={!departmentId}>
-                            <option value="">Select programme</option>
+                            <option value="">Select degree programme</option>
                             {programmeOptions.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.code})</option>)}
                           </select>
                         </div>
                       </div>
-                      {requiresDirectoryMapping && <p className="academic-correction-mapping-note"><Icon name="info" size={16}/> The student entered an academic name that is not currently linked to a directory record. If it is valid, add the required <Link to="/admin/academics/structure/faculties">faculty</Link>, <Link to="/admin/academics/structure/departments">department</Link> or <Link to="/admin/academics/structure/programmes">programme</Link>, then return here and map it before approval.</p>}
+                      {requiresDirectoryMapping && <p className="academic-correction-mapping-note"><Icon name="info" size={16}/> The student entered an academic name that is not currently linked to a directory record. If it is valid, add the required <Link to="/admin/academics/structure/faculties">faculty</Link>, <Link to="/admin/academics/structure/departments">department</Link> or <Link to="/admin/academics/structure/programmes">degree programme</Link>, then return here and map it before approval.</p>}
                     </div>
                     <div className="academic-correction-review-actions">
                       <div className="field academic-correction-review-note"><label htmlFor={`review-note-${request.id}`}>Decision note <span className="optional">(required for rejection)</span></label><textarea id={`review-note-${request.id}`} rows="2" maxLength="1500" value={notes[request.id] || ''} onChange={(event) => setNotes((previous) => ({ ...previous, [request.id]: event.target.value }))} placeholder="Explain the decision or tell the student what needs to be corrected."/></div>

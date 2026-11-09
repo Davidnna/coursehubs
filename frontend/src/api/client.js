@@ -265,3 +265,10 @@ export function getAdminAcademicCorrections(status = 'pending') {
 export function reviewAcademicCorrection(id, payload) {
   return api.patch(`/admin/academic-corrections/${encodeURIComponent(id)}`, payload);
 }
+
+
+// Scoped administrator delegation.
+export function getAdministrators() { return api.get('/admin/administrators'); }
+export function searchAdministratorAccounts(email) { return api.get(`/admin/administrators/accounts?email=${encodeURIComponent(email)}`); }
+export function assignAdministrator(payload) { return api.post('/admin/administrators', payload); }
+export function revokeAdministrator(id) { return api.del(`/admin/administrators/${encodeURIComponent(id)}`); }

@@ -62,6 +62,7 @@ require __DIR__ . '/../src/Controllers/AccountController.php';
 require __DIR__ . '/../src/Controllers/GoogleAuthController.php';
 require __DIR__ . '/../src/Controllers/AcademicSessionController.php';
 require __DIR__ . '/../src/Controllers/AcademicController.php';
+require __DIR__ . '/../src/Controllers/AdminManagementController.php';
 require __DIR__ . '/../src/Controllers/StaffManagementController.php';
 require __DIR__ . '/../src/Controllers/AcademicCorrectionController.php';
 require __DIR__ . '/../src/Controllers/AcademicCsvImportController.php';

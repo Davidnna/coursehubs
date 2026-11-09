@@ -259,6 +259,7 @@ final class GoogleAuthController
             'level' => $user['level'] !== null ? (int) $user['level'] : null,
             'is_admin' => (int) $user['is_admin'] === 1,
             'is_super_admin' => (int) $user['is_super_admin'] === 1,
+            'admin_scopes' => Auth::scopesFor((int) $user['id']),
             'is_verified' => (int) $user['is_verified'] === 1,
             'profile_picture_data' => $user['profile_picture_data'] ?? null,
         ];

@@ -170,6 +170,7 @@ final class DatabaseMigrator
 
             if ($existing !== false) {
                 $pdo->prepare('UPDATE public.users SET is_admin = TRUE WHERE id = ?')->execute([(int) $existing]);
+                $pdo->prepare("INSERT INTO public.administrator_scopes (user_id, scope_type, scope_id, role, assigned_by) VALUES (?, 'institution', NULL, 'super_admin', NULL) ON CONFLICT DO NOTHING")->execute([(int) $existing]);
                 $complete = $pdo->prepare(
                     "UPDATE public.coursehubs_bootstrap_state
                      SET completed_at = CURRENT_TIMESTAMP, completed_user_id = ?
@@ -204,6 +205,7 @@ final class DatabaseMigrator
             if ($promote->rowCount() !== 1) {
                 throw new RuntimeException('The configured initial administrator could not be promoted.');
             }
+            $pdo->prepare("INSERT INTO public.administrator_scopes (user_id, scope_type, scope_id, role, assigned_by) VALUES (?, 'institution', NULL, 'super_admin', NULL) ON CONFLICT DO NOTHING")->execute([(int) $userId]);
 
             $complete = $pdo->prepare(
                 "UPDATE public.coursehubs_bootstrap_state

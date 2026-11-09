@@ -32,6 +32,7 @@ import StaffManagement from './pages/StaffManagement';
 import AcademicCsvImport from './pages/AcademicCsvImport';
 import ResourceModeration from './pages/ResourceModeration';
 import AcademicCorrectionModeration from './pages/AcademicCorrectionModeration';
+import AdministratorManagement from './pages/AdministratorManagement';
 import AcademicManagementBoundary from './components/AcademicManagementBoundary';
 import { PageEffects, ScrollToTopButton, ScrollProgressIndicator } from './components/PageEffects';
 
@@ -77,6 +78,7 @@ export default function App() {
               <Route path="academic-information" element={<Navigate to="/account#academic-information" replace/>}/>
               <Route path="account" element={<Account/>}/>
               <Route element={<AdminRoute/>}>
+                <Route path="admin/administrators" element={<AdministratorManagement/>}/>
                 <Route path="admin/academics" element={<Navigate to="/admin/academics/overview" replace/>}/>
                 <Route path="admin/academics/overview" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
                 <Route path="admin/academics/import" element={<AcademicManagementBoundary><AcademicCsvImport/></AcademicManagementBoundary>}/>

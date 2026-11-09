@@ -43,7 +43,6 @@ $router->get('/admin/resource-reports', [ResourceController::class, 'adminReport
 $router->patch('/admin/resource-reports/{id}', [ResourceController::class, 'resolveReport']);
 
 // Administrative academic management. Every route enforces administrator access server-side.
-$router->post('/admin/academic/import/csv', [AcademicCsvImportController::class, 'handle']);
 $router->get('/admin/administrators', [AdminManagementController::class, 'index']);
 $router->get('/admin/administrators/accounts', [AdminManagementController::class, 'searchAccounts']);
 $router->post('/admin/administrators', [AdminManagementController::class, 'assign']);

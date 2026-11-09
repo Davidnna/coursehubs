@@ -65,7 +65,6 @@ require __DIR__ . '/../src/Controllers/AcademicController.php';
 require __DIR__ . '/../src/Controllers/AdminManagementController.php';
 require __DIR__ . '/../src/Controllers/StaffManagementController.php';
 require __DIR__ . '/../src/Controllers/AcademicCorrectionController.php';
-require __DIR__ . '/../src/Controllers/AcademicCsvImportController.php';
 require __DIR__ . '/../src/Controllers/ResourceController.php';
 
 Config::load(__DIR__ . '/../.env');

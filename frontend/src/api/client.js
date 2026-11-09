@@ -2,159 +2,157 @@ const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').repla
 const TOKEN_KEY = 'coursehubs_token';
 
 const ERROR_MESSAGES = {
-  INVALID_CREDENTIALS: 'The email address or password is incorrect.',
-  CURRENT_PASSWORD_INVALID: 'Your current password is incorrect.',
-  ACCOUNT_TEMPORARILY_LOCKED: 'Too many unsuccessful attempts. Please try again later.',
-  EMAIL_NOT_VERIFIED: 'Verify your email address before signing in.',
-  ACCOUNT_SUSPENDED: 'This account is currently unavailable. Please contact CourseHubs support.',
-  UNAUTHENTICATED: 'Please sign in to continue.',
-  INVALID_TOKEN: 'Your session has expired. Please sign in again.',
-  SESSION_INVALID: 'Your session is no longer valid. Please sign in again.',
-  INVALID_VERIFICATION_TOKEN: 'This verification link is invalid or has already been used.',
-  VERIFICATION_EXPIRED: 'This verification link has expired. Request a new one.',
-  RESET_TOKEN_EXPIRED: 'This password-reset link is invalid or has expired. Request a new one.',
-  CSV_EMPTY: 'This CSV contains only column headings and no records. Add at least one row, save the file, and preview it again.',
-  ACADEMIC_CORRECTION_PENDING: 'You already have an academic information request awaiting review. Track its status in Account settings.',
-  RESOURCE_REPORT_PENDING: 'You have already reported this resource. Your report is awaiting administrator review.',
+    INVALID_CREDENTIALS: 'The email address or password is incorrect.',
+    CURRENT_PASSWORD_INVALID: 'Your current password is incorrect.',
+    ACCOUNT_TEMPORARILY_LOCKED: 'Too many unsuccessful attempts. Please try again later.',
+    EMAIL_NOT_VERIFIED: 'Verify your email address before signing in.',
+    ACCOUNT_SUSPENDED: 'This account is currently unavailable. Please contact CourseHubs support.',
+    UNAUTHENTICATED: 'Please sign in to continue.',
+    INVALID_TOKEN: 'Your session has expired. Please sign in again.',
+    SESSION_INVALID: 'Your session is no longer valid. Please sign in again.',
+    INVALID_VERIFICATION_TOKEN: 'This verification link is invalid or has already been used.',
+    VERIFICATION_EXPIRED: 'This verification link has expired. Request a new one.',
+    RESET_TOKEN_EXPIRED: 'This password-reset link is invalid or has expired. Request a new one.',
+    ACADEMIC_CORRECTION_PENDING: 'You already have an academic information request awaiting review. Track its status in Account settings.',
+    RESOURCE_REPORT_PENDING: 'You have already reported this resource. Your report is awaiting administrator review.',
 };
 
 const STATUS_MESSAGES = {
-  400: 'We could not process that request. Please check the information and try again.',
-  401: 'Please sign in again to continue.',
-  403: 'You do not have permission to complete this action.',
-  404: 'We could not find what you were looking for.',
-  503: 'This service is temporarily unavailable. Please try again shortly.',
-  409: 'We could not complete that request because the information conflicts with an existing record.',
-  410: 'This link has expired or is no longer valid. Request a new one to continue.',
-  422: 'Please review the highlighted information and try again.',
-  429: 'Too many requests. Please wait a moment and try again.',
+    400: 'We could not process that request. Please check the information and try again.',
+    401: 'Please sign in again to continue.',
+    403: 'You do not have permission to complete this action.',
+    404: 'We could not find what you were looking for.',
+    503: 'This service is temporarily unavailable. Please try again shortly.',
+    409: 'We could not complete that request because the information conflicts with an existing record.',
+    410: 'This link has expired or is no longer valid. Request a new one to continue.',
+    422: 'Please review the highlighted information and try again.',
+    429: 'Too many requests. Please wait a moment and try again.',
 };
 
 const FIELD_FALLBACKS = {
-  first_name: 'Enter your first name.',
-  surname: 'Enter your surname.',
-  middle_name: 'Check your middle name.',
-  email: 'Enter a valid email address.',
-  new_email: 'Enter a valid new email address.',
-  phone: 'Enter a valid phone number.',
-  password: 'Enter a password that meets the requirements.',
-  new_password: 'Choose a password that meets the requirements.',
-  confirm_password: 'Confirm your new password.',
-  account_type: 'Choose a valid account type.',
-  reg_no: 'Enter your student registration number.',
-  level: 'Choose a valid academic level.',
-  expected_graduation_session_id: 'Choose an expected graduation session.',
-  department_id: 'Choose your department.',
-  programme_id: 'Choose your degree programme.',
-  staff_no: 'Enter your staff number.',
-  token: 'This link is invalid or has expired. Request a new one.',
-  confirmation: 'Type DELETE to confirm.',
-  profile_picture_data: 'Choose a valid profile photo.',
+    first_name: 'Enter your first name.',
+    surname: 'Enter your surname.',
+    middle_name: 'Check your middle name.',
+    email: 'Enter a valid email address.',
+    new_email: 'Enter a valid new email address.',
+    phone: 'Enter a valid phone number.',
+    password: 'Enter a password that meets the requirements.',
+    new_password: 'Choose a password that meets the requirements.',
+    confirm_password: 'Confirm your new password.',
+    account_type: 'Choose a valid account type.',
+    reg_no: 'Enter your student registration number.',
+    level: 'Choose a valid academic level.',
+    expected_graduation_session_id: 'Choose an expected graduation session.',
+    department_id: 'Choose your department.',
+    programme_id: 'Choose your degree programme.',
+    staff_no: 'Enter your staff number.',
+    token: 'This link is invalid or has expired. Request a new one.',
+    confirmation: 'Type DELETE to confirm.',
+    profile_picture_data: 'Choose a valid profile photo.',
 };
 
 const KNOWN_FIELD_MESSAGES = {
-  first_name: ['First name is required.', 'Enter a first name of no more than 80 characters.'],
-  surname: ['Surname is required.', 'Enter a surname of no more than 80 characters.'],
-  middle_name: ['Middle name must be no more than 80 characters.'],
-  email: ['Email is required.', 'Enter a valid email address.', 'An account with this email already exists.'],
-  new_email: ['Enter a valid email address.', 'Choose a different email address.', 'That email address is already in use.'],
-  phone: ['Phone number is required.', 'Enter a valid phone number.'],
-  password: ['Password is required.', 'Password must be at least 8 characters.', 'Password must not exceed 72 bytes.'],
-  new_password: ['Use between 8 and 72 characters.'],
-  confirm_password: ['The passwords do not match.'],
-  account_type: ['Account type is required.', 'Account type must be one of: student, staff.'],
-  reg_no: ['Registration number is required.', 'An account with this registration number already exists.'],
-  level: ['Level is required.', 'Level must be a level between 100 and 500, in steps of 100.'],
-  expected_graduation_session_id: ['Expected graduation session is required.'],
-  department_id: ['Choose your department.', 'Choose an active department.'],
-  programme_id: ['Choose your degree programme.', 'Choose a degree programme under the selected department.'],
-  staff_no: ['Staff number is required.', 'An account with this staff number already exists.'],
-  token: ['This password-reset link is invalid.'],
-  confirmation: ['Type DELETE to confirm.'],
-  profile_picture_data: ['Choose a valid JPG, PNG or WebP image.', 'Your profile photo must be smaller than 400 KB after processing.', 'The selected file is not a supported image.'],
+    first_name: ['First name is required.', 'Enter a first name of no more than 80 characters.'],
+    surname: ['Surname is required.', 'Enter a surname of no more than 80 characters.'],
+    middle_name: ['Middle name must be no more than 80 characters.'],
+    email: ['Email is required.', 'Enter a valid email address.', 'An account with this email already exists.'],
+    new_email: ['Enter a valid email address.', 'Choose a different email address.', 'That email address is already in use.'],
+    phone: ['Phone number is required.', 'Enter a valid phone number.'],
+    password: ['Password is required.', 'Password must be at least 8 characters.', 'Password must not exceed 72 bytes.'],
+    new_password: ['Use between 8 and 72 characters.'],
+    confirm_password: ['The passwords do not match.'],
+    account_type: ['Account type is required.', 'Account type must be one of: student, staff.'],
+    reg_no: ['Registration number is required.', 'An account with this registration number already exists.'],
+    level: ['Level is required.', 'Level must be a level between 100 and 500, in steps of 100.'],
+    expected_graduation_session_id: ['Expected graduation session is required.'],
+    department_id: ['Choose your department.', 'Choose an active department.'],
+    programme_id: ['Choose your degree programme.', 'Choose a degree programme under the selected department.'],
+    staff_no: ['Staff number is required.', 'An account with this staff number already exists.'],
+    token: ['This password-reset link is invalid.'],
+    confirmation: ['Type DELETE to confirm.'],
+    profile_picture_data: ['Choose a valid JPG, PNG or WebP image.', 'Your profile photo must be smaller than 400 KB after processing.', 'The selected file is not a supported image.'],
 };
 
 function safeFieldErrors(fields) {
-  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return undefined;
-  const safe = {};
-  for (const [field, message] of Object.entries(fields)) {
-    if (!(field in FIELD_FALLBACKS)) continue;
-    const allowed = KNOWN_FIELD_MESSAGES[field] || [];
-    safe[field] = typeof message === 'string' && allowed.includes(message)
-      ? message
-      : FIELD_FALLBACKS[field];
-  }
-  return Object.keys(safe).length ? safe : undefined;
+    if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return undefined;
+    const safe = {};
+    for (const [field, message] of Object.entries(fields)) {
+        if (!(field in FIELD_FALLBACKS)) continue;
+        const allowed = KNOWN_FIELD_MESSAGES[field] || [];
+        safe[field] = typeof message === 'string' && allowed.includes(message)
+            ? message
+            : FIELD_FALLBACKS[field];
+    }
+    return Object.keys(safe).length ? safe : undefined;
 }
 
 function safeErrorMessage(data, status, fields) {
-  const code = typeof data?.code === 'string' ? data.code : '';
-  if (code && ERROR_MESSAGES[code]) return ERROR_MESSAGES[code];
-  if (status >= 500) return 'Something went wrong on our end. Please try again shortly.';
-  if (status === 422 && fields) return 'Please review the highlighted information and try again.';
-  return STATUS_MESSAGES[status] || 'We could not complete your request. Please try again.';
+    const code = typeof data?.code === 'string' ? data.code : '';
+    if (code && ERROR_MESSAGES[code]) return ERROR_MESSAGES[code];
+    if (status >= 500) return 'Something went wrong on our end. Please try again shortly.';
+    if (status === 422 && fields) return 'Please review the highlighted information and try again.';
+    return STATUS_MESSAGES[status] || 'We could not complete your request. Please try again.';
 }
 
 export function setAuthToken(token) {
-  if (token) sessionStorage.setItem(TOKEN_KEY, token);
-  else sessionStorage.removeItem(TOKEN_KEY);
+    if (token) sessionStorage.setItem(TOKEN_KEY, token);
+    else sessionStorage.removeItem(TOKEN_KEY);
 }
 
 export function clearAuthToken() {
-  sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
 }
 
 export function hasAuthToken() {
-  return Boolean(sessionStorage.getItem(TOKEN_KEY));
+    return Boolean(sessionStorage.getItem(TOKEN_KEY));
 }
 
 async function request(path, options = {}) {
-  const token = sessionStorage.getItem(TOKEN_KEY);
-  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
-  const headers = {
-    Accept: 'application/json',
-    ...(options.body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...options.headers,
-  };
+    const token = sessionStorage.getItem(TOKEN_KEY);
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+    const headers = {
+        Accept: 'application/json',
+        ...(options.body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+    };
 
-  let response;
-  try {
-    response = await fetch(`${BASE_URL}${path}`, { ...options, headers });
-  } catch {
-    throw new Error('We could not connect to CourseHubs. Check your internet connection and try again.');
-  }
-
-  if (response.status === 204) return null;
-  const data = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    const fields = safeFieldErrors(data?.fields);
-    const code = typeof data?.code === 'string' && Object.hasOwn(ERROR_MESSAGES, data.code)
-      ? data.code
-      : undefined;
-    const error = new Error(safeErrorMessage(data, response.status, fields));
-    error.status = response.status;
-    if (code) error.code = code;
-    if (fields) error.fields = fields;
-    if (data && typeof data === 'object') error.data = data;
-    if (code === 'EMAIL_NOT_VERIFIED' && typeof data?.email === 'string') error.email = data.email;
-    if (response.status === 401 && token) {
-      clearAuthToken();
-      window.dispatchEvent(new Event('coursehubs:auth-expired'));
+    let response;
+    try {
+        response = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+    } catch {
+        throw new Error('We could not connect to CourseHubs. Check your internet connection and try again.');
     }
-    throw error;
-  }
 
-  return data;
+    if (response.status === 204) return null;
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+        const fields = safeFieldErrors(data?.fields);
+        const code = typeof data?.code === 'string' && Object.hasOwn(ERROR_MESSAGES, data.code)
+            ? data.code
+            : undefined;
+        const error = new Error(safeErrorMessage(data, response.status, fields));
+        error.status = response.status;
+        if (code) error.code = code;
+        if (fields) error.fields = fields;
+        if (code === 'EMAIL_NOT_VERIFIED' && typeof data?.email === 'string') error.email = data.email;
+        if (response.status === 401 && token) {
+            clearAuthToken();
+            window.dispatchEvent(new Event('coursehubs:auth-expired'));
+        }
+        throw error;
+    }
+
+    return data;
 }
 
 export const api = {
-  get: (path) => request(path, { method: 'GET' }),
-  post: (path, body) => request(path, { method: 'POST', body: JSON.stringify(body ?? {}) }),
-  patch: (path, body) => request(path, { method: 'PATCH', body: JSON.stringify(body ?? {}) }),
-  del: (path, body) => request(path, { method: 'DELETE', ...(body ? { body: JSON.stringify(body) } : {}) }),
-  upload: (path, body) => request(path, { method: 'POST', body }),
+    get: (path) => request(path, { method: 'GET' }),
+    post: (path, body) => request(path, { method: 'POST', body: JSON.stringify(body ?? {}) }),
+    patch: (path, body) => request(path, { method: 'PATCH', body: JSON.stringify(body ?? {}) }),
+    del: (path, body) => request(path, { method: 'DELETE', ...(body ? { body: JSON.stringify(body) } : {}) }),
+    upload: (path, body) => request(path, { method: 'POST', body }),
 };
 
 export function checkHealth() { return api.get('/health'); }
@@ -181,12 +179,12 @@ export function startGoogleSignIn() { window.location.assign(`${BASE_URL}/auth/g
 export function getAcademicStructure() { return api.get('/academic-structure'); }
 
 export function getCourses(filters = {}) {
-  const params = new URLSearchParams();
-  Object.entries(filters).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
-  });
-  const query = params.toString();
-  return api.get(`/courses${query ? `?${query}` : ''}`);
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
+    });
+    const query = params.toString();
+    return api.get(`/courses${query ? `?${query}` : ''}`);
 }
 
 export function getCourse(id) { return api.get(`/courses/${encodeURIComponent(id)}`); }
@@ -220,12 +218,12 @@ export function revokeCourseAdviser(assignmentId) { return api.del(`/admin/acade
 
 // Course resource library and moderation.
 export function searchResources(filters = {}) {
-  const params = new URLSearchParams();
-  Object.entries(filters).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
-  });
-  const query = params.toString();
-  return api.get(`/resources${query ? `?${query}` : ''}`);
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
+    });
+    const query = params.toString();
+    return api.get(`/resources${query ? `?${query}` : ''}`);
 }
 export function bookmarkResource(id) { return api.post(`/resources/${encodeURIComponent(id)}/bookmark`, {}); }
 export function unbookmarkResource(id) { return api.del(`/resources/${encodeURIComponent(id)}/bookmark`); }
@@ -237,33 +235,26 @@ export function getResourceCourses() { return api.get('/resources/courses'); }
 export function createResource(formData) { return api.upload('/resources', formData); }
 export function getMyResources() { return api.get('/resources/mine'); }
 export function getCourseResources(courseId, type = '') {
-  const params = new URLSearchParams();
-  if (type) params.set('type', type);
-  const query = params.toString();
-  return api.get(`/courses/${encodeURIComponent(courseId)}/resources${query ? `?${query}` : ''}`);
+    const params = new URLSearchParams();
+    if (type) params.set('type', type);
+    const query = params.toString();
+    return api.get(`/courses/${encodeURIComponent(courseId)}/resources${query ? `?${query}` : ''}`);
 }
 export function getResourceFileUrl(id, action = 'download') { return api.get(`/resources/${encodeURIComponent(id)}/file?action=${encodeURIComponent(action)}`); }
 export function getAdminResources(status = 'pending') { return api.get(`/admin/resources?status=${encodeURIComponent(status)}`); }
 export function moderateResource(id, payload) { return api.patch(`/admin/resources/${encodeURIComponent(id)}/moderation`, payload); }
 export function deleteResource(id) { return api.del(`/resources/${encodeURIComponent(id)}`); }
 
-export function uploadAcademicCsv(file, type, mode = 'preview') {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('type', type);
-  formData.append('mode', mode);
-  return api.upload('/admin/academic/import/csv', formData);
-}
 
 
 // Student academic information correction requests and administrator review.
 export function getMyAcademicCorrections() { return api.get('/academic-corrections/mine'); }
 export function createAcademicCorrection(payload) { return api.post('/academic-corrections', payload); }
 export function getAdminAcademicCorrections(status = 'pending') {
-  return api.get(`/admin/academic-corrections?status=${encodeURIComponent(status)}`);
+    return api.get(`/admin/academic-corrections?status=${encodeURIComponent(status)}`);
 }
 export function reviewAcademicCorrection(id, payload) {
-  return api.patch(`/admin/academic-corrections/${encodeURIComponent(id)}`, payload);
+    return api.patch(`/admin/academic-corrections/${encodeURIComponent(id)}`, payload);
 }
 
 

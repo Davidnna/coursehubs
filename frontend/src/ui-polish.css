@@ -1156,3 +1156,42 @@ html[data-motion="reduced"] .ambient3d *::after {
   }
   .scroll-progress-fill { will-change: auto; }
 }
+
+
+/* CourseHubs main-page scrollbar: slim, branded and consistent across browsers. */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: #4256f4 #edf0f6;
+}
+body,
+body * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(63, 85, 237, .72) rgba(21, 29, 54, .055);
+}
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: #edf0f6;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb {
+  min-height: 38px;
+  border: 2px solid #edf0f6;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #4256f4 0%, #7182ff 100%);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #293fc9 0%, #4256f4 100%);
+}
+::-webkit-scrollbar-corner {
+  background: #edf0f6;
+}
+@media (pointer: coarse) {
+  /* Preserve native touch scrolling and avoid a visually heavy track on touch devices. */
+  html { scrollbar-width: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::-webkit-scrollbar-thumb { transition: none !important; }
+}

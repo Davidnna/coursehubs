@@ -14,6 +14,7 @@ const ERROR_MESSAGES = {
   VERIFICATION_EXPIRED: 'This verification link has expired. Request a new one.',
   RESET_TOKEN_EXPIRED: 'This password-reset link is invalid or has expired. Request a new one.',
   CSV_EMPTY: 'This CSV contains only column headings and no records. Add at least one row, save the file, and preview it again.',
+  ACADEMIC_CORRECTION_PENDING: 'You already have an academic information request awaiting review. Track its status on the Academic information page.',
 };
 
 const STATUS_MESSAGES = {
@@ -230,4 +231,15 @@ export function uploadAcademicCsv(file, type, mode = 'preview') {
   formData.append('type', type);
   formData.append('mode', mode);
   return api.upload('/admin/academic/import/csv', formData);
+}
+
+
+// Student academic information correction requests and administrator review.
+export function getMyAcademicCorrections() { return api.get('/academic-corrections/mine'); }
+export function createAcademicCorrection(payload) { return api.post('/academic-corrections', payload); }
+export function getAdminAcademicCorrections(status = 'pending') {
+  return api.get(`/admin/academic-corrections?status=${encodeURIComponent(status)}`);
+}
+export function reviewAcademicCorrection(id, payload) {
+  return api.patch(`/admin/academic-corrections/${encodeURIComponent(id)}`, payload);
 }

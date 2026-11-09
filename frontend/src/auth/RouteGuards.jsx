@@ -28,3 +28,12 @@ export function AdminRoute() {
   if (!user.is_admin) return <Navigate to="/dashboard" replace/>;
   return <Outlet/>;
 }
+
+
+export function StudentRoute() {
+  const { user, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.account_type !== 'student') return <Navigate to="/dashboard" replace />;
+  return <Outlet />;
+}

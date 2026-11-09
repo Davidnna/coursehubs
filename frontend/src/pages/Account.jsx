@@ -184,6 +184,7 @@ export default function Account() {
       <section className="account-profile-summary">
         <div className="account-avatar-large">{photoData ? <img src={photoData} alt={`${displayName} profile`} /> : <span>{initials(account || user)}</span>}</div>
         <div className="account-summary-copy"><span className="account-summary-label">SIGNED IN AS</span><h2>{displayName || 'CourseHubs member'}</h2><p>{account?.email || user?.email}</p><span className="account-type-chip">{account?.account_type === 'staff' ? 'Staff member' : 'Student'}{account?.level ? ` · ${account.level} level` : ''}</span></div>
+        {account?.account_type === 'student' && <Link to="/academic-information" className="account-academic-link"><Icon name="graduation" size={16}/> Review academic information</Link>}
         <Link to="/dashboard" className="account-back-link"><Icon name="arrowRight" size={16}/> Back to workspace</Link>
       </section>
 

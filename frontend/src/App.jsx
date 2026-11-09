@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import PublicLayout from './components/PublicLayout';
 import WorkspaceLayout from './components/WorkspaceLayout';
 import { AuthProvider } from './auth/AuthContext';
-import { AdminRoute, GuestRoute, ProtectedRoute } from './auth/RouteGuards';
+import { AdminRoute, GuestRoute, ProtectedRoute, StudentRoute } from './auth/RouteGuards';
 import Home from './pages/Home';
 import About from './pages/About';
 import Features from './pages/Features';
@@ -28,6 +28,8 @@ import TermsOfService from './pages/TermsOfService';
 import AcademicManagement from './pages/AcademicManagement';
 import AcademicCsvImport from './pages/AcademicCsvImport';
 import ResourceModeration from './pages/ResourceModeration';
+import AcademicInformation from './pages/AcademicInformation';
+import AcademicCorrectionModeration from './pages/AcademicCorrectionModeration';
 import AcademicManagementBoundary from './components/AcademicManagementBoundary';
 import { PageEffects, ScrollToTopButton } from './components/PageEffects';
 
@@ -68,6 +70,7 @@ export default function App() {
               <Route path="catalog" element={<Catalog/>}/>
               <Route path="courses/:id" element={<CourseDetail/>}/>
               <Route path="upload" element={<Upload/>}/>
+              <Route element={<StudentRoute/>}><Route path="academic-information" element={<AcademicInformation/>}/></Route>
               <Route path="account" element={<Account/>}/>
               <Route element={<AdminRoute/>}>
                 <Route path="admin/academics" element={<Navigate to="/admin/academics/overview" replace/>}/>
@@ -93,6 +96,7 @@ export default function App() {
                 <Route path="admin/academics/offerings/:recordId/edit" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
                 <Route path="admin/academics/*" element={<Navigate to="/admin/academics/overview" replace/>}/>
               <Route path="admin/resources" element={<ResourceModeration/>}/>
+              <Route path="admin/academic-corrections" element={<AcademicCorrectionModeration/>}/>
               </Route>
             </Route>
           </Route>

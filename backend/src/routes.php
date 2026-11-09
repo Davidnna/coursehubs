@@ -16,6 +16,12 @@ $router->get('/health', function (): void {
 
 $router->get('/academic-sessions', [AcademicSessionController::class, 'index']);
 $router->get('/academic-structure', [AcademicController::class, 'publicStructure']);
+
+$router->get('/academic-corrections/mine', [AcademicCorrectionController::class, 'mine']);
+$router->post('/academic-corrections', [AcademicCorrectionController::class, 'create']);
+$router->get('/admin/academic-corrections', [AcademicCorrectionController::class, 'adminIndex']);
+$router->patch('/admin/academic-corrections/{id}', [AcademicCorrectionController::class, 'review']);
+
 $router->get('/courses', [AcademicController::class, 'catalog']);
 $router->get('/courses/{id}', [AcademicController::class, 'courseDetail']);
 

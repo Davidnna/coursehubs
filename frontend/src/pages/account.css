@@ -130,3 +130,6 @@
   .account-photo-row { align-items: flex-start; }
   .workspace-account-name { display: none; }
 }
+
+.account-academic-link { display:inline-flex; align-items:center; gap:7px; color:#4055d8; font-size:11px; font-weight:800; text-decoration:none; }
+.account-academic-link:hover { text-decoration:underline; }

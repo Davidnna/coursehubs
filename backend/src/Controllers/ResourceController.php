@@ -24,6 +24,7 @@ final class ResourceController
         $storageReady = ObjectStorage::isConfigured();
 
         Response::json([
+            'account_type' => $user['account_type'] ?? null,
             'can_upload' => $canUpload,
             'can_upload_assessments' => $canUploadAssessments,
             'allowed_types' => $allowedTypes,
@@ -57,7 +58,7 @@ final class ResourceController
                 Response::json([
                     'courses' => [],
                     'scope' => 'student_department_level',
-                    'message' => 'Your academic profile is missing a department or current level. Please contact your department administrator to update it before uploading a resource.',
+                    'message' => 'Your academic profile is missing a department or current level. Submit an academic information correction request so an administrator can verify and update your record.',
                 ]);
             }
 
@@ -83,7 +84,7 @@ final class ResourceController
                 'courses' => $courses,
                 'scope' => 'student_department_level',
                 'message' => $courses === []
-                    ? 'No courses are currently offered by your department for your current level in the active academic session. Please contact your department administrator if you think this is incorrect.'
+                    ? 'No courses have been added for your department and current level in the active academic session. If your department, programme or level is missing or incorrect, request an academic information correction. If your details are correct, contact your department administrator about the programme course list.'
                     : null,
             ]);
         }

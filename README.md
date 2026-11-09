@@ -9,15 +9,16 @@ CourseHubs is an independently operated academic platform developed for the Ebon
 - Email/password login, Google sign-in for existing accounts, logout, password recovery and protected application routes.
 - Account settings for profile details, profile photo, verified email changes, password changes and account deletion.
 - Private dashboard, live course catalogue and course details backed by PostgreSQL.
-- Administrator-only academic management for faculties, departments, programmes, academic sessions, courses, course offerings and lecturer assignments, with a temporary CSV importer for initial academic data setup.
+- Administrator-only academic management for faculties, departments, programmes, academic sessions, courses, programme course lists and lecturer assignments, with a temporary CSV importer for initial academic data setup.
 
-- Course offerings support cross-department service/ancillary courses and credit loads up to 30 units, including SIWES and industrial training.
+- Programme course lists support cross-department service/ancillary courses and credit loads up to 30 units, including SIWES and industrial training.
 - Student registration can be associated with a faculty, department and programme once the academic directory is configured.
 - Purpose-specific transactional email through Nylas, with replies directed to the CourseHubs support mailbox.
 - PostgreSQL persistence with versioned, automatically applied database migrations.
 - Responsive layouts, accessible navigation, reduced-motion support and animated interface elements.
 
-A moderated course resource library supports course materials, past examination questions and model answers through private Neon Object Storage. Student contributors see only courses offered by their department for their current level in the active academic session. Past questions and model answers are restricted to lecturers, course representatives and course advisers.
+- A student academic information correction system lets students request verified department, programme and level updates, with administrator approval and review history.
+- A moderated course resource library supports course materials, past examination questions and model answers through private Neon Object Storage. Student contributors see only courses offered by their department for their current level in the active academic session. Past questions and model answers are restricted to lecturers, course representatives and course advisers.
 
 ## Technology
 
@@ -117,7 +118,7 @@ The public website includes `/privacy` and `/terms`. The registration page links
 
 Academic management is restricted to CourseHubs administrators. On a fresh deployment, create a normal CourseHubs account and verify its email address first. First deploy the application version that contains migration `0005_academic_management.sql` while `INITIAL_SUPER_ADMIN_EMAIL` is unset, so the bootstrap-state table is created. After that deployment is live, set `INITIAL_SUPER_ADMIN_EMAIL` in the backend environment to that exact verified email and redeploy the backend. The migration runner performs a one-time promotion to super administrator and records completion in PostgreSQL. Remove the environment variable after the successful bootstrap message appears in the Render logs. The bootstrap marker prevents the operation from running again. If the account was not yet registered and verified when the variable was first deployed, register and verify it, then redeploy once more.
 
-After signing in again, the administrator will see **Academic management** in the workspace navigation. During initial setup, the temporary CSV importer is available at `/admin/academics/import`; it supports faculties, departments, programmes, sessions, courses and course offerings. Uploads are previewed and validated before import, existing records are skipped rather than overwritten, and a file containing validation errors is not imported. CSV files are limited to 2 MB and 1,000 data rows. This temporary tool should be removed after initial academic data setup is complete. Its sections have individual React Router URLs: `/admin/academics/overview`, `/admin/academics/structure/faculties`, `/admin/academics/structure/departments`, `/admin/academics/structure/programmes`, `/admin/academics/sessions`, `/admin/academics/courses` and `/admin/academics/offerings`. Create and edit screens have dedicated `/new` and `/:recordId/edit` routes. Browser Back and Forward navigate through the administrator’s actual page history. The administrator can create faculties, departments and programmes; add academic sessions and activate one current session; create department-owned or university-wide courses; and assign courses to programmes, levels, semesters and sessions with linked or manually entered lecturer names. University-wide courses can be offered across departments. Levels (100–600) and semesters (First and Second) are standardised lookup options.
+After signing in again, the administrator will see **Academic management** in the workspace navigation. During initial setup, the temporary CSV importer is available at `/admin/academics/import`; it supports faculties, departments, programmes, sessions, courses and programme course lists. Uploads are previewed and validated before import, existing records are skipped rather than overwritten, and a file containing validation errors is not imported. CSV files are limited to 2 MB and 1,000 data rows. This temporary tool should be removed after initial academic data setup is complete. Its sections have individual React Router URLs: `/admin/academics/overview`, `/admin/academics/structure/faculties`, `/admin/academics/structure/departments`, `/admin/academics/structure/programmes`, `/admin/academics/sessions`, `/admin/academics/courses` and `/admin/academics/offerings`. Create and edit screens have dedicated `/new` and `/:recordId/edit` routes. Browser Back and Forward navigate through the administrator’s actual page history. The administrator can create faculties, departments and programmes; add academic sessions and activate one current session; create department-owned or university-wide courses; and build programme course lists by assigning courses to programmes, levels, semesters and sessions with linked or manually entered lecturer names. University-wide courses can be offered across departments. Levels (100–600) and semesters (First and Second) are standardised lookup options.
 
 ## Account management
 
@@ -156,7 +157,7 @@ Render's Docker startup runs migrations before Apache starts. Local development 
 
 ## Course resources (Phase 2)
 
-The resource library supports course materials, past examination questions and model answers. Signed-in students can view approved resources from each course page. Resource contributions are restricted to administrators and accounts with an approved academic role or an active lecturer/representative/adviser assignment. Students selecting a course to contribute to will see only courses offered by their department for their current level in the active academic session; the backend enforces the same restriction on upload requests.
+The resource library supports course materials, past examination questions and model answers. Signed-in students can view approved resources from each course page. Resource contributions are restricted to administrators and accounts with an approved academic role or an active lecturer/representative/adviser assignment. Students selecting a course to contribute to will see only courses assigned to their department for their current level in the active academic session; the backend enforces the same restriction on upload requests.
 
 Past examination questions and model answers can only be submitted by lecturers, course representatives and course advisers. Administrators without one of those academic roles can submit course materials, but cannot submit past questions or model answers. Non-administrator submissions enter moderation; administrators can approve or reject them with a review note. Pending and rejected resources are not visible in the student course library.
 
@@ -181,3 +182,15 @@ Do not use the Neon API token as the S3 access key. Keep the bucket private and 
 - Course detail pages — approved materials, past questions and model answers.
 
 The resource API enforces authentication, contributor eligibility, student department/level course scope, assessment-resource role restrictions, file type and size checks, private storage, approved-only visibility and administrator moderation. Technical failures are written to server logs; user-facing responses remain generic.
+
+
+## Academic information corrections
+
+Students can open `/academic-information` to review the department, programme and current level associated with their account. If an academic record is missing or incorrect, they can submit a correction request by selecting an active department/programme or entering the official name when it is not yet in the academic directory, selecting their correct level, and explaining the change.
+
+A submitted request does not directly modify the student account. Administrators review requests at `/admin/academic-corrections`. If a student names a department or programme that is not yet in the directory, an administrator first adds it through Academic management and then maps the request to the verified active records. Approval updates the student's department, programme and level in one transaction. Rejections require an explanation. Students can track pending, approved and rejected requests, including administrator feedback, from the same page.
+
+The backend enforces student-only submission, active academic directory membership, programme-to-department consistency, one pending request per student, stale-profile checks during approval, and administrator-only decisions. The migration `0007_academic_information_corrections.sql` creates the unified correction history and imports any existing level-only correction requests without deleting the legacy records. No manual SQL or additional environment variables are required.
+
+
+In student-facing language, CourseHubs uses **programme course lists** or **courses for your programme** instead of the administrative term “course offerings”. These are the courses assigned to a programme, level, semester and academic session.

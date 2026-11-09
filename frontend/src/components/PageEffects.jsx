@@ -189,3 +189,56 @@ export function ScrollToTopButton() {
     </button>
   );
 }
+
+
+/**
+ * A lightweight progress indicator for the public homepage. It reflects the
+ * actual document scroll position and does not take control of scrolling.
+ */
+export function ScrollProgressIndicator() {
+  const location = useLocation();
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    if (location.pathname !== '/') {
+      setProgress(0);
+      return undefined;
+    }
+
+    let frame = null;
+    const update = () => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        const root = document.documentElement;
+        const maxScroll = Math.max(0, root.scrollHeight - window.innerHeight);
+        const current = window.scrollY || root.scrollTop || 0;
+        setProgress(maxScroll > 0 ? Math.min(1, Math.max(0, current / maxScroll)) : 0);
+        frame = null;
+      });
+    };
+
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
+  }, [location.pathname]);
+
+  if (location.pathname !== '/') return null;
+
+  return (
+    <div
+      className="scroll-progress-track"
+      role="progressbar"
+      aria-label="Homepage scroll progress"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(progress * 100)}
+    >
+      <span className="scroll-progress-fill" style={{ transform: `scaleX(${progress})` }}/>
+    </div>
+  );
+}

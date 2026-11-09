@@ -33,13 +33,14 @@ import AcademicCsvImport from './pages/AcademicCsvImport';
 import ResourceModeration from './pages/ResourceModeration';
 import AcademicCorrectionModeration from './pages/AcademicCorrectionModeration';
 import AcademicManagementBoundary from './components/AcademicManagementBoundary';
-import { PageEffects, ScrollToTopButton } from './components/PageEffects';
+import { PageEffects, ScrollToTopButton, ScrollProgressIndicator } from './components/PageEffects';
 
 export default function App() {
   return (
     <BrowserRouter>
       <PageEffects/>
       <ScrollToTopButton/>
+      <ScrollProgressIndicator/>
       <AuthProvider>
         <Routes>
           {/* Public marketing website and account-entry pages. */}

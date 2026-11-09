@@ -16,7 +16,7 @@ export default function AdministratorManagement() {
     const [structure, setStructure] = useState({ faculties: [], departments: [] });
     const [email, setEmail] = useState('');
     const [account, setAccount] = useState(null);
-    const [scopeType, setScopeType] = useState(() => user?.admin_scopes?.some((scope) => scope.scope_type === 'institution' && scope.role === 'super_admin') ? 'institution' : user?.admin_scopes?.some((scope) => scope.scope_type === 'faculty') ? 'faculty' : 'department');
+    const [scopeType, setScopeType] = useState(() => user?.admin_scopes?.some((scope) => scope.scope_type === 'institution' && scope.role === 'super_admin') ? 'institution' : user?.admin_scopes?.some((scope) => scope.scope_type === 'faculty' && scope.role === 'super_admin') ? 'faculty' : 'department');
     const [scopeId, setScopeId] = useState('');
     const [role, setRole] = useState('admin');
     const [loading, setLoading] = useState(true);
@@ -51,7 +51,13 @@ export default function AdministratorManagement() {
         setAccount(null);
         try {
             const result = await searchAdministratorAccounts(email.trim());
-            setAccount(result.accounts?.[0] || null);
+            const foundAccount = result.accounts?.[0] || null;
+            setAccount(foundAccount);
+            setScopeId('');
+            const existingInstitutionAppointment = foundAccount?.administrator_assignments?.find(
+                (assignment) => assignment.scope_type === 'institution',
+            );
+            setRole(existingInstitutionAppointment?.role || 'admin');
             if (!result.accounts?.length) setError('No active, verified account was found for that email address.');
         } catch (requestError) {
             setError(requestError.message || 'The account could not be found.');
@@ -65,13 +71,19 @@ export default function AdministratorManagement() {
         setError('');
         setMessage('');
         try {
-            await assignAdministrator({
+            const result = await assignAdministrator({
                 user_id: account.id,
                 scope_type: scopeType,
                 scope_id: scopeType === 'institution' ? null : Number(scopeId),
                 role,
             });
-            setMessage('Administrator access has been assigned.');
+            setMessage(
+                result.action === 'promoted'
+                    ? 'The existing appointment has been promoted to Super Administrator.'
+                    : result.action === 'demoted'
+                        ? 'The existing appointment has been changed to Administrator.'
+                        : 'Administrator access has been assigned.',
+            );
             setAccount(null);
             setEmail('');
             await refresh();
@@ -96,8 +108,9 @@ export default function AdministratorManagement() {
     }
 
     const adminScopes = user?.admin_scopes || [];
-    const allowedFacultyIds = adminScopes.filter((scope) => scope.scope_type === 'faculty').map((scope) => Number(scope.scope_id));
-    const allowedDepartmentIds = adminScopes.filter((scope) => scope.scope_type === 'department').map((scope) => Number(scope.scope_id));
+    const delegationScopes = adminScopes.filter((scope) => scope.role === 'super_admin');
+    const allowedFacultyIds = delegationScopes.filter((scope) => scope.scope_type === 'faculty').map((scope) => Number(scope.scope_id));
+    const allowedDepartmentIds = delegationScopes.filter((scope) => scope.scope_type === 'department').map((scope) => Number(scope.scope_id));
     const canManageAllAcademicScopes = isInstitutionSuperAdmin;
     const canManageFaculties = canManageAllAcademicScopes || allowedFacultyIds.length > 0;
     const canManageDepartments = canManageAllAcademicScopes || allowedFacultyIds.length > 0 || allowedDepartmentIds.length > 0;
@@ -110,6 +123,29 @@ export default function AdministratorManagement() {
             ? row.faculty_name || `Faculty #${row.scope_id}`
             : row.department_name || `Department #${row.scope_id}`;
 
+    const existingAssignments = account?.administrator_assignments || [];
+    const matchingAssignment = existingAssignments.find((assignment) => (
+        assignment.scope_type === scopeType
+        && (
+            scopeType === 'institution'
+                ? assignment.scope_id === null
+                : Number(assignment.scope_id) === Number(scopeId)
+        )
+    ));
+    const hasHierarchyConflict = Boolean(
+        account && (
+            scopeType === 'institution'
+                ? account.has_scoped_assignments
+                : account.has_institution_assignment
+        )
+    );
+    const sameRoleAlreadyAssigned = Boolean(matchingAssignment && matchingAssignment.role === role);
+    const isRoleChange = Boolean(matchingAssignment && matchingAssignment.role !== role);
+    const assignmentDisabled = saving
+        || hasHierarchyConflict
+        || sameRoleAlreadyAssigned
+        || (scopeType !== 'institution' && !scopeId);
+
     return <main className="standard-page workspace-page">
         <div className="breadcrumb"><Link to="/dashboard">My workspace</Link><Icon name="chevronRight" size={14} />Administrator management</div>
         <div className="page-lead"><div className="page-eyebrow"><span className="eyebrow-line" /> ACCESS GOVERNANCE</div><h1>Administrator <span>management.</span></h1><p>Assign and revoke administrative authority within the academic scopes you are permitted to manage.</p></div>
@@ -120,21 +156,59 @@ export default function AdministratorManagement() {
         <section className="workspace-widget" style={{ marginBottom: 24 }}>
             <div className="widget-top"><span className="widget-symbol"><Icon name="users" /></span><span className="widget-status">NEW ASSIGNMENT</span></div>
             <h2>Assign administrator access</h2>
+            <p className="administrator-policy-note">
+                A person may administer multiple faculties or departments when each appointment is authorised.
+                Institution-wide access cannot be combined with faculty or department appointments.
+                Each person has one role per scope; changing that role updates the existing appointment.
+            </p>
             <form onSubmit={findAccount} className="administrator-management-form" style={{ marginTop: 18 }}>
                 <label htmlFor="administrator-email">Account email address</label>
                 <div className="form-row"><input id="administrator-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="person@example.com" required /><button className="btn btn-outline" type="submit">Find account</button></div>
             </form>
             {account && <form onSubmit={submitAssignment} className="administrator-management-form" style={{ marginTop: 18 }}>
                 <p><strong>{[account.first_name, account.middle_name, account.surname].filter(Boolean).join(' ')}</strong> · {account.email} · {account.account_type}</p>
+                {existingAssignments.length > 0 && <div className="administrator-existing-access">
+                    <strong>Existing appointments within your authority</strong>
+                    <ul>
+                        {existingAssignments.map((assignment, index) => (
+                            <li key={`${assignment.scope_type}-${assignment.scope_id ?? 'institution'}-${index}`}>
+                                {scopeLabel(assignment)} — {assignment.role === 'super_admin' ? 'Super Administrator' : 'Administrator'}
+                            </li>
+                        ))}
+                    </ul>
+                </div>}
+                {scopeType === 'institution' && account.has_scoped_assignments && <div className="administrator-policy-warning" role="alert">
+                    This account already has faculty or department appointments. Review and revoke those appointments before assigning institution-wide access.
+                </div>}
+                {scopeType !== 'institution' && account.has_institution_assignment && <div className="administrator-policy-warning" role="alert">
+                    This account already has institution-wide administrator access. It cannot also receive a faculty or department appointment.
+                </div>}
+                {sameRoleAlreadyAssigned && <div className="administrator-policy-warning" role="status">
+                    This account already has the selected role in this scope.
+                </div>}
                 <label htmlFor="administrator-scope">Administrative scope</label>
-                <select id="administrator-scope" value={scopeType} onChange={(event) => { setScopeType(event.target.value); setScopeId(''); }}>
+                <select id="administrator-scope" value={scopeType} onChange={(event) => {
+                    const nextScopeType = event.target.value;
+                    setScopeType(nextScopeType);
+                    setScopeId('');
+                    const existing = existingAssignments.find((assignment) => assignment.scope_type === nextScopeType);
+                    setRole(existing?.role || 'admin');
+                }}>
                     {isInstitutionSuperAdmin && <option value="institution">Institution</option>}
                     {canManageFaculties && <option value="faculty">Faculty</option>}
                     {canManageDepartments && <option value="department">Department</option>}
                 </select>
                 {scopeType !== 'institution' && <>
                     <label htmlFor="administrator-scope-id">{scopeType === 'faculty' ? 'Faculty' : 'Department'}</label>
-                    <select id="administrator-scope-id" value={scopeId} onChange={(event) => setScopeId(event.target.value)} required>
+                    <select id="administrator-scope-id" value={scopeId} onChange={(event) => {
+                        const nextScopeId = event.target.value;
+                        setScopeId(nextScopeId);
+                        const existing = existingAssignments.find((assignment) => (
+                            assignment.scope_type === scopeType
+                            && Number(assignment.scope_id) === Number(nextScopeId)
+                        ));
+                        setRole(existing?.role || 'admin');
+                    }} required>
                         <option value="">Select a {scopeType}</option>
                         {scopes.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.code})</option>)}
                     </select>
@@ -144,15 +218,20 @@ export default function AdministratorManagement() {
                     <option value="admin">Administrator</option>
                     <option value="super_admin">Super Administrator</option>
                 </select>
-                <button className="btn btn-primary" type="submit" disabled={saving || (scopeType !== 'institution' && !scopeId)}>{saving ? 'Assigning…' : 'Assign administrator'}</button>
+                <button className="btn btn-primary" type="submit" disabled={assignmentDisabled}>
+                    {saving ? 'Saving…' : isRoleChange ? 'Update administrator role' : 'Assign administrator'}
+                </button>
             </form>}
         </section>
 
         <section className="workspace-widget">
             <div className="widget-top"><span className="widget-symbol"><Icon name="shield" /></span><span className="widget-status">CURRENT ACCESS</span></div>
             <h2>Administrator assignments</h2>
-            {loading ? <p>Loading administrator assignments…</p> : administrators.length === 0 ? <p>No administrator assignments are available within your authority.</p> : <div className="administrator-management-table-wrap"><table className="administrator-management-table"><thead><tr><th>Administrator</th><th>Scope</th><th>Permission</th><th>Action</th></tr></thead><tbody>
-                {administrators.map((item) => <tr key={item.scope_assignment_id}><td><strong>{[item.first_name, item.middle_name, item.surname].filter(Boolean).join(' ')}</strong><small>{item.email}</small></td><td>{scopeLabel(item)}</td><td>{item.role === 'super_admin' ? 'Super Administrator' : 'Administrator'}</td><td><button className="btn btn-outline" type="button" onClick={() => removeAssignment(item.scope_assignment_id)}>Revoke</button></td></tr>)}
+            {administrators.some((item) => item.has_scope_hierarchy_conflict) && <div className="administrator-policy-warning" role="status">
+                Some existing appointments combine institution-wide access with faculty or department access. Review these legacy assignments and revoke any redundant appointment. New conflicting appointments are blocked.
+            </div>}
+            {loading ? <p>Loading administrator assignments…</p> : administrators.length === 0 ? <p>No administrator assignments are available within your authority.</p> : <div className="administrator-management-table-wrap"><table className="administrator-management-table"><thead><tr><th>Administrator</th><th>Scope</th><th>Permission</th><th>Review</th><th>Action</th></tr></thead><tbody>
+                {administrators.map((item) => <tr key={item.scope_assignment_id}><td><strong>{[item.first_name, item.middle_name, item.surname].filter(Boolean).join(' ')}</strong><small>{item.email}</small></td><td>{scopeLabel(item)}</td><td>{item.role === 'super_admin' ? 'Super Administrator' : 'Administrator'}</td><td>{item.has_scope_hierarchy_conflict ? <span className="administrator-conflict-label">Hierarchy conflict</span> : '—'}</td><td><button className="btn btn-outline" type="button" onClick={() => removeAssignment(item.scope_assignment_id)}>Revoke</button></td></tr>)}
             </tbody></table></div>}
         </section>
     </main>;

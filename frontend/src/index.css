@@ -4239,3 +4239,53 @@ h1, h2, h3 {
         grid-template-columns: 1fr;
     }
 }
+
+/* Administrator appointment policy */
+.administrator-policy-note {
+    margin: 12px 0 18px;
+    color: var(--text-muted, #68708a);
+    font-size: 13px;
+    line-height: 1.65;
+    max-width: 760px;
+}
+
+.administrator-existing-access {
+    margin: 14px 0;
+    padding: 14px 16px;
+    border: 1px solid var(--border, #e5e8f0);
+    border-radius: 12px;
+    background: var(--surface-subtle, #f8f9fc);
+    color: var(--text, #20263a);
+    font-size: 13px;
+}
+
+.administrator-existing-access ul {
+    display: grid;
+    gap: 6px;
+    margin: 9px 0 0;
+    padding-left: 19px;
+    color: var(--text-muted, #68708a);
+}
+
+.administrator-policy-warning {
+    margin: 12px 0;
+    padding: 12px 14px;
+    border: 1px solid #e9c98c;
+    border-radius: 10px;
+    background: #fff8e9;
+    color: #75521a;
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.administrator-conflict-label {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 8px;
+    border-radius: 999px;
+    background: #fff0d8;
+    color: #80520c;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}

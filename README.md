@@ -208,3 +208,31 @@ Signed-in users can bookmark resources and access their bookmarks from the Resou
 Members can report an approved resource for incorrect academic information, poor quality, copyright concerns, inappropriate content, duplication or another concern. Administrators review these reports at `/admin/resource-reports`, resolve them with an optional note, or unpublish a resource while resolving the report. The existing resource moderation queue remains at `/admin/resources`.
 
 Migration `0008_resource_discovery.sql` creates the resource bookmark and recent-access tables and adds an index for upload reports. The report workflow reuses the existing `flags` table. Migrations are applied automatically at backend startup; no manual SQL or additional environment variables are required.
+
+
+## Academic staff and contributor management
+
+Administrators can manage verified staff and assign academic responsibilities from **Staff & contributors** in the private workspace (`/admin/staff-management`).
+
+The management area includes:
+- A verified staff directory.
+- Lecturer assignments to specific course, degree programme, level, semester and academic-session records.
+- Primary and assistant course representative assignments for verified students with a valid degree programme and current level.
+- Course adviser assignments to a degree programme and level cohort, with an expected graduation session.
+- Revocation of current assignments without deleting staff or student accounts.
+- An assignment history recording who assigned or revoked each responsibility and when.
+
+Staff accounts are created through the normal CourseHubs registration process and must be email-verified and active before administrators can assign responsibilities. A staff account alone does not grant contributor privileges.
+
+Contributor permissions are checked by the backend against active assignments. Lecturers can contribute to courses they are assigned to teach; course representatives and course advisers can contribute to courses in their assigned programme and level group. Revoking an assignment removes the associated contribution permission.
+
+The feature uses database migration `0009_staff_contributor_management.sql`, which adds the course-programme link to adviser assignments and creates an assignment audit history. Migrations are applied automatically during backend startup; do not run them manually.
+
+### Staff management API
+
+All endpoints below require administrator authentication:
+- `GET /admin/academic/staff-management` — staff directory, course assignments, representative and adviser assignments, and recent assignment history.
+- `GET /admin/academic/students?q=...` — search eligible students by name, registration number or email.
+- `POST /admin/academic/lecturer-assignments` and `DELETE /admin/academic/lecturer-assignments/{id}` — assign or remove a lecturer from a course.
+- `POST /admin/academic/representatives` and `DELETE /admin/academic/representatives/{id}` — assign or revoke a primary/assistant course representative.
+- `POST /admin/academic/advisers` and `DELETE /admin/academic/advisers/{id}` — assign or revoke a course adviser for a programme-level cohort.

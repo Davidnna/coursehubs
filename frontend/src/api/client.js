@@ -209,6 +209,14 @@ export function createCourseOffering(payload) { return api.post('/admin/academic
 export function updateCourseOffering(id, payload) { return api.patch(`/admin/academic/offerings/${id}`, payload); }
 export function archiveCourseOffering(id) { return api.del(`/admin/academic/offerings/${id}`); }
 export function getAcademicStaff() { return api.get('/admin/academic/staff'); }
+export function getStaffManagement() { return api.get('/admin/academic/staff-management'); }
+export function searchAcademicStudents(query) { return api.get(`/admin/academic/students?q=${encodeURIComponent(query)}`); }
+export function assignLecturer(payload) { return api.post('/admin/academic/lecturer-assignments', payload); }
+export function revokeLecturer(assignmentId) { return api.del(`/admin/academic/lecturer-assignments/${encodeURIComponent(assignmentId)}`); }
+export function assignCourseRepresentative(payload) { return api.post('/admin/academic/representatives', payload); }
+export function revokeCourseRepresentative(assignmentId) { return api.del(`/admin/academic/representatives/${encodeURIComponent(assignmentId)}`); }
+export function assignCourseAdviser(payload) { return api.post('/admin/academic/advisers', payload); }
+export function revokeCourseAdviser(assignmentId) { return api.del(`/admin/academic/advisers/${encodeURIComponent(assignmentId)}`); }
 
 // Course resource library and moderation.
 export function searchResources(filters = {}) {

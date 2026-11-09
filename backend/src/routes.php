@@ -63,6 +63,14 @@ $router->post('/admin/academic/offerings', [AcademicController::class, 'createOf
 $router->patch('/admin/academic/offerings/{id}', [AcademicController::class, 'updateOffering']);
 $router->delete('/admin/academic/offerings/{id}', [AcademicController::class, 'archiveOffering']);
 $router->get('/admin/academic/staff', [AcademicController::class, 'staff']);
+$router->get('/admin/academic/staff-management', [StaffManagementController::class, 'index']);
+$router->get('/admin/academic/students', [StaffManagementController::class, 'searchStudents']);
+$router->post('/admin/academic/lecturer-assignments', [StaffManagementController::class, 'assignLecturer']);
+$router->delete('/admin/academic/lecturer-assignments/{id}', [StaffManagementController::class, 'revokeLecturer']);
+$router->post('/admin/academic/representatives', [StaffManagementController::class, 'assignRepresentative']);
+$router->delete('/admin/academic/representatives/{id}', [StaffManagementController::class, 'revokeRepresentative']);
+$router->post('/admin/academic/advisers', [StaffManagementController::class, 'assignAdviser']);
+$router->delete('/admin/academic/advisers/{id}', [StaffManagementController::class, 'revokeAdviser']);
 
 $router->post('/auth/register', [AuthController::class, 'register']);
 $router->get('/auth/verify-email', [AuthController::class, 'verifyEmail']);

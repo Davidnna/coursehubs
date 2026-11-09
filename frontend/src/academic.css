@@ -312,3 +312,24 @@
 }
 
 .academic-correction-upload-help a + a { margin-top: 3px; }
+
+
+.academic-staff-handoff {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:15px 16px;
+  margin:12px 0 18px;
+  border:1px solid var(--line, rgba(100,116,139,.2));
+  border-radius:12px;
+  background:var(--surface-secondary, rgba(248,250,252,.75));
+}
+.academic-staff-handoff > div { min-width:0; display:flex; flex-direction:column; gap:4px; }
+.academic-staff-handoff strong { color:var(--ink,#172033); font-size:.86rem; }
+.academic-staff-handoff p { margin:0; color:var(--muted,#64748b); font-size:.77rem; line-height:1.5; }
+.academic-staff-handoff span { color:var(--muted,#64748b); font-size:.72rem; }
+.academic-staff-handoff .btn { flex:0 0 auto; white-space:nowrap; }
+@media (max-width:620px) {
+  .academic-staff-handoff { align-items:flex-start; flex-direction:column; }
+}

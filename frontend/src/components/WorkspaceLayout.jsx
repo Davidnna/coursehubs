@@ -10,6 +10,7 @@ const workspaceNav = [
   { to: '/resources', label: 'Resource library', icon: 'file' },
   { to: '/upload', label: 'Contribute resources', icon: 'upload' },
   { to: '/admin/academics', label: 'Academic management', icon: 'school', adminOnly: true },
+  { to: '/admin/staff-management', label: 'Staff & contributors', icon: 'users', adminOnly: true },
   { to: '/admin/resources', label: 'Resource moderation', icon: 'shield', adminOnly: true },
   { to: '/admin/resource-reports', label: 'Resource reports', icon: 'flag', adminOnly: true },
   { to: '/admin/academic-corrections', label: 'Academic information requests', icon: 'document', adminOnly: true },

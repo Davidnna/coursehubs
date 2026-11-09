@@ -28,6 +28,7 @@ import GoogleCallback from './pages/GoogleCallback';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import AcademicManagement from './pages/AcademicManagement';
+import StaffManagement from './pages/StaffManagement';
 import AcademicCsvImport from './pages/AcademicCsvImport';
 import ResourceModeration from './pages/ResourceModeration';
 import AcademicCorrectionModeration from './pages/AcademicCorrectionModeration';
@@ -97,6 +98,7 @@ export default function App() {
                 <Route path="admin/academics/offerings/new" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
                 <Route path="admin/academics/offerings/:recordId/edit" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
                 <Route path="admin/academics/*" element={<Navigate to="/admin/academics/overview" replace/>}/>
+              <Route path="admin/staff-management" element={<StaffManagement/>}/>
               <Route path="admin/resources" element={<ResourceModeration/>}/>
               <Route path="admin/resource-reports" element={<ResourceReports/>}/>
               <Route path="admin/academic-corrections" element={<AcademicCorrectionModeration/>}/>

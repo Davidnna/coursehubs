@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import PublicLayout from './components/PublicLayout';
 import WorkspaceLayout from './components/WorkspaceLayout';
 import { AuthProvider } from './auth/AuthContext';
-import { AdminRoute, GuestRoute, ProtectedRoute } from './auth/RouteGuards';
+import { AdminRoute, AdministratorManagementRoute, GuestRoute, ProtectedRoute } from './auth/RouteGuards';
 import Home from './pages/Home';
 import About from './pages/About';
 import Features from './pages/Features';
@@ -70,6 +70,9 @@ export default function App() {
                     <Route element={<ProtectedRoute />}>
                         <Route element={<WorkspaceLayout />}>
                             <Route path="dashboard" element={<Dashboard />} />
+                            <Route element={<AdministratorManagementRoute />}>
+                                <Route path="admin/administrators" element={<AdministratorManagement />} />
+                            </Route>
                             <Route path="catalog" element={<Catalog />} />
                             <Route path="resources" element={<ResourceLibrary />} />
                             <Route path="courses/:id" element={<CourseDetail />} />
@@ -77,7 +80,6 @@ export default function App() {
                             <Route path="academic-information" element={<Navigate to="/account#academic-information" replace />} />
                             <Route path="account" element={<Account />} />
                             <Route element={<AdminRoute />}>
-                                <Route path="admin/administrators" element={<AdministratorManagement />} />
                                 <Route path="admin/academics" element={<Navigate to="/admin/academics/overview" replace />} />
                                 <Route path="admin/academics/overview" element={<AcademicManagementBoundary><AcademicManagement /></AcademicManagementBoundary>} />
                                 <Route path="admin/academics/structure" element={<Navigate to="/admin/academics/structure/faculties" replace />} />

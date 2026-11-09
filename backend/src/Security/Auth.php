@@ -64,6 +64,32 @@ final class Auth
         return $user;
     }
 
+    public static function requireAdministratorDelegation(): array
+    {
+        $user = self::requireAdministrator();
+
+        if (!self::canManageAdministratorAssignments($user)) {
+            Response::error('You do not have permission to manage administrator assignments.', 403, ['code' => 'ADMIN_DELEGATION_ACCESS_REQUIRED']);
+        }
+
+        return $user;
+    }
+
+    public static function canManageAdministratorAssignments(array $user): bool
+    {
+        $scopes = $user['admin_scopes'] ?? self::scopesFor((int) $user['id']);
+
+        foreach ($scopes as $scope) {
+            if (($scope['role'] ?? null) === 'super_admin') {
+                return true;
+            }
+        }
+
+        return $scopes === []
+            && filter_var($user['is_admin'] ?? false, FILTER_VALIDATE_BOOLEAN)
+            && filter_var($user['is_super_admin'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    }
+
     public static function scopesFor(int $userId): array
     {
         $stmt = Database::connection()->prepare(

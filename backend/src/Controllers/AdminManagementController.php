@@ -6,7 +6,7 @@ final class AdminManagementController
 {
     public static function index(): void
     {
-        $actor = Auth::requireAdministrator();
+        $actor = Auth::requireAdministratorDelegation();
         $db = Database::connection();
         $sql = 'SELECT s.id AS scope_assignment_id, s.user_id, s.scope_type, s.scope_id, s.role,
                        u.first_name, u.surname, u.middle_name, u.email,
@@ -25,7 +25,7 @@ final class AdminManagementController
 
     public static function searchAccounts(): void
     {
-        Auth::requireAdministrator();
+        Auth::requireAdministratorDelegation();
         $email = strtolower(trim((string) ($_GET['email'] ?? '')));
         if (strlen($email) < 4 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             Response::json(['accounts' => []]);
@@ -41,7 +41,7 @@ final class AdminManagementController
 
     public static function assign(): void
     {
-        $actor = Auth::requireAdministrator();
+        $actor = Auth::requireAdministratorDelegation();
         $body = self::input();
         $userId = self::positiveId($body['user_id'] ?? null);
         if ($userId === (int) $actor['id']) Response::error('You cannot expand your own administrator scope.', 403, ['code' => 'SELF_SCOPE_EXPANSION_FORBIDDEN']);
@@ -114,7 +114,7 @@ final class AdminManagementController
 
     public static function revoke(array $params): void
     {
-        $actor = Auth::requireAdministrator();
+        $actor = Auth::requireAdministratorDelegation();
         $assignmentId = self::positiveId($params['id'] ?? null);
         $db = Database::connection();
         $db->beginTransaction();

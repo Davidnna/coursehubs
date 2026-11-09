@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
+import { canManageAdministrators } from './permissions';
 
 function LoadingScreen() {
     return <main className="route-loading" role="status"><span className="loading-spinner" /><p>Checking your session…</p></main>;
@@ -35,5 +36,18 @@ export function StudentRoute() {
     if (loading) return <LoadingScreen />;
     if (!user) return <Navigate to="/login" replace />;
     if (user.account_type !== 'student') return <Navigate to="/dashboard" replace />;
+    return <Outlet />;
+}
+
+export function AdministratorManagementRoute() {
+    const { user, loading } = useAuth();
+    const location = useLocation();
+
+    if (loading) return <LoadingScreen />;
+    if (!user) {
+        return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
+    }
+    if (!canManageAdministrators(user)) return <Navigate to="/dashboard" replace />;
+
     return <Outlet />;
 }

@@ -19,6 +19,7 @@ The application includes:
 - Academic profile correction requests and administrator review.
 - Management of lecturers, course representatives and course advisers.
 - Administrative tools for maintaining academic information and platform content.
+- Administrator management for authorised institution, faculty and department leaders.
 
 Access to features depends on a member's account and assigned academic responsibilities.
 

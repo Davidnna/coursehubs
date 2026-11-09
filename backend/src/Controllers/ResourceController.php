@@ -202,19 +202,235 @@ final class ResourceController
         }
     }
 
+    public static function search(): void
+    {
+        $user = Auth::requireUser();
+        $db = Database::connection();
+        $userId = (int) $user['id'];
+        $view = trim((string) ($_GET['view'] ?? 'all'));
+        if (!in_array($view, ['all', 'bookmarks', 'recent'], true)) $view = 'all';
+
+        $where = ["u.status = 'approved'", 'u.deleted_at IS NULL', 'c.deleted_at IS NULL', "c.is_active IS TRUE", "c.status = 'active'"];
+        $params = [];
+        if ($view === 'bookmarks') {
+            $where[] = 'EXISTS (SELECT 1 FROM resource_bookmarks rb WHERE rb.user_id = ? AND rb.upload_id = u.id)';
+            $params[] = $userId;
+        } elseif ($view === 'recent') {
+            $where[] = 'EXISTS (SELECT 1 FROM resource_views rv WHERE rv.user_id = ? AND rv.upload_id = u.id)';
+            $params[] = $userId;
+        }
+
+        $query = trim((string) ($_GET['q'] ?? ''));
+        if ($query !== '') {
+            if (self::characterLength($query) > 100 && preg_match('/^.{0,100}/us', $query, $matches)) {
+                $query = $matches[0];
+            }
+            $term = '%' . $query . '%';
+            $where[] = "(u.title ILIKE ? OR c.current_code ILIKE ? OR c.title ILIKE ? OR COALESCE(u.original_filename, '') ILIKE ? OR u.search_vector @@ plainto_tsquery('english', ?))";
+            array_push($params, $term, $term, $term, $term, $query);
+        }
+
+        $type = trim((string) ($_GET['type'] ?? ''));
+        if (in_array($type, self::TYPES, true)) { $where[] = 'u.type = ?'; $params[] = $type; }
+        $courseId = self::positiveId($_GET['course_id'] ?? null);
+        if ($courseId > 0) { $where[] = 'u.course_id = ?'; $params[] = $courseId; }
+
+        $programmeId = self::positiveId($_GET['programme_id'] ?? null);
+        $departmentId = self::positiveId($_GET['department_id'] ?? null);
+        $facultyId = self::positiveId($_GET['faculty_id'] ?? null);
+        $level = filter_var($_GET['level'] ?? null, FILTER_VALIDATE_INT);
+        if (!in_array($level, [100, 200, 300, 400, 500, 600], true)) $level = null;
+        $semester = trim((string) ($_GET['semester'] ?? ''));
+        if (!in_array($semester, ['First', 'Second'], true)) $semester = '';
+        $sessionId = self::positiveId($_GET['session_id'] ?? null);
+
+        $hasOfferingFilters = $programmeId > 0 || $departmentId > 0 || $facultyId > 0 || $level !== null || $semester !== '';
+        if ($hasOfferingFilters) {
+            $offeringWhere = ['co.course_id = u.course_id', 'co.deleted_at IS NULL'];
+            $offeringParams = [];
+            if ($programmeId > 0) { $offeringWhere[] = 'co.programme_id = ?'; $offeringParams[] = $programmeId; }
+            if ($departmentId > 0) { $offeringWhere[] = 'COALESCE(p.department_id, c.department_id) = ?'; $offeringParams[] = $departmentId; }
+            if ($facultyId > 0) { $offeringWhere[] = 'd.faculty_id = ?'; $offeringParams[] = $facultyId; }
+            if ($level !== null) { $offeringWhere[] = 'co.level = ?'; $offeringParams[] = $level; }
+            if ($semester !== '') { $offeringWhere[] = 'co.semester = ?'; $offeringParams[] = $semester; }
+            if ($sessionId > 0) {
+                $offeringWhere[] = 'co.academic_session_id = ?';
+                $offeringParams[] = $sessionId;
+                $offeringWhere[] = '(u.academic_session_id IS NULL OR u.academic_session_id = co.academic_session_id)';
+            }
+            $where[] = 'EXISTS (SELECT 1 FROM course_offerings co LEFT JOIN programmes p ON p.id = co.programme_id LEFT JOIN departments d ON d.id = COALESCE(p.department_id, c.department_id) WHERE ' . implode(' AND ', $offeringWhere) . ')';
+            array_push($params, ...$offeringParams);
+        } elseif ($sessionId > 0) {
+            $where[] = '(u.academic_session_id = ? OR EXISTS (SELECT 1 FROM course_offerings co_session WHERE co_session.course_id = u.course_id AND co_session.academic_session_id = ? AND co_session.deleted_at IS NULL))';
+            array_push($params, $sessionId, $sessionId);
+        }
+
+        $whereSql = implode(' AND ', $where);
+        $countStmt = $db->prepare('SELECT COUNT(*) FROM uploads u JOIN courses c ON c.id = u.course_id WHERE ' . $whereSql);
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
+
+        $sort = trim((string) ($_GET['sort'] ?? 'newest'));
+        $orderBy = match ($sort) {
+            'popular' => 'download_count DESC, u.created_at DESC, u.id DESC',
+            'title' => 'u.title ASC, u.created_at DESC',
+            default => $view === 'recent' ? 'rv.last_viewed_at DESC NULLS LAST, u.created_at DESC' : 'u.created_at DESC, u.id DESC',
+        };
+        $limit = filter_var($_GET['limit'] ?? 24, FILTER_VALIDATE_INT);
+        $limit = $limit === false ? 24 : max(1, min(48, $limit));
+        $offset = filter_var($_GET['offset'] ?? 0, FILTER_VALIDATE_INT);
+        $offset = $offset === false ? 0 : max(0, min(10000, $offset));
+
+        $sql = "SELECT u.id, u.title, u.type, u.file_size, u.original_filename, u.mime_type, u.created_at,
+                       u.academic_session_id, s.name AS session_name, u.course_id,
+                       c.current_code AS course_code, c.title AS course_title,
+                       COALESCE(offering_area.department_name, d.name, 'Academic directory') AS department_name,
+                       COALESCE(offering_area.faculty_name, f.name) AS faculty_name,
+                       CONCAT(author.first_name, ' ', author.surname) AS uploader_name,
+                       (SELECT COUNT(*) FROM download_logs dl WHERE dl.upload_id = u.id) AS download_count,
+                       CASE WHEN EXISTS (SELECT 1 FROM resource_bookmarks rb WHERE rb.user_id = ? AND rb.upload_id = u.id) THEN 1 ELSE 0 END AS is_bookmarked,
+                       CASE WHEN EXISTS (SELECT 1 FROM flags fl WHERE fl.flaggable_type = 'upload' AND fl.flaggable_id = u.id AND fl.reported_by = ? AND fl.status = 'open') THEN 1 ELSE 0 END AS has_open_report,
+                       rv.last_viewed_at
+                FROM uploads u
+                JOIN courses c ON c.id = u.course_id
+                JOIN users author ON author.id = u.uploader_id
+                LEFT JOIN academic_sessions s ON s.id = u.academic_session_id
+                LEFT JOIN departments d ON d.id = c.department_id
+                LEFT JOIN faculties f ON f.id = d.faculty_id
+                LEFT JOIN LATERAL (
+                    SELECT d2.name AS department_name, f2.name AS faculty_name
+                    FROM course_offerings co2
+                    LEFT JOIN programmes p2 ON p2.id = co2.programme_id
+                    LEFT JOIN departments d2 ON d2.id = COALESCE(p2.department_id, c.department_id)
+                    LEFT JOIN faculties f2 ON f2.id = d2.faculty_id
+                    WHERE co2.course_id = u.course_id AND co2.deleted_at IS NULL
+                      AND (u.academic_session_id IS NULL OR co2.academic_session_id = u.academic_session_id)
+                    ORDER BY co2.academic_session_id DESC, co2.level, co2.semester
+                    LIMIT 1
+                ) offering_area ON TRUE
+                LEFT JOIN resource_views rv ON rv.user_id = ? AND rv.upload_id = u.id
+                WHERE {$whereSql}
+                ORDER BY {$orderBy}
+                LIMIT {$limit} OFFSET {$offset}";
+        $stmt = $db->prepare($sql);
+        $stmt->execute(array_merge([$userId, $userId, $userId], $params));
+        $resources = $stmt->fetchAll();
+
+        Response::json([
+            'resources' => $resources,
+            'total' => $total,
+            'limit' => $limit,
+            'offset' => $offset,
+            'has_more' => $offset + count($resources) < $total,
+            'view' => $view,
+        ]);
+    }
+
+    public static function bookmark(array $params): void
+    {
+        $user = Auth::requireUser();
+        $id = self::positiveId($params['id'] ?? null);
+        $db = Database::connection();
+        $resource = $db->prepare("SELECT id FROM uploads WHERE id = ? AND status = 'approved' AND deleted_at IS NULL");
+        $resource->execute([$id]);
+        if (!$resource->fetchColumn()) Response::error('The resource could not be found.', 404);
+        $stmt = $db->prepare('INSERT INTO resource_bookmarks (user_id, upload_id) VALUES (?, ?) ON CONFLICT (user_id, upload_id) DO NOTHING');
+        $stmt->execute([(int) $user['id'], $id]);
+        Response::json(['message' => 'Resource saved to your bookmarks.', 'bookmarked' => true]);
+    }
+
+    public static function unbookmark(array $params): void
+    {
+        $user = Auth::requireUser();
+        $id = self::positiveId($params['id'] ?? null);
+        Database::connection()->prepare('DELETE FROM resource_bookmarks WHERE user_id = ? AND upload_id = ?')->execute([(int) $user['id'], $id]);
+        Response::json(['message' => 'Resource removed from your bookmarks.', 'bookmarked' => false]);
+    }
+
+    public static function report(array $params): void
+    {
+        $user = Auth::requireUser();
+        $id = self::positiveId($params['id'] ?? null);
+        $body = self::jsonBody();
+        $reasonCode = trim((string) ($body['reason'] ?? ''));
+        $details = trim((string) ($body['details'] ?? ''));
+        $reasonLabels = [
+            'incorrect_course' => 'Incorrect course or academic information',
+            'poor_quality' => 'Poor or unreadable document',
+            'copyright' => 'Copyright or ownership concern',
+            'inappropriate' => 'Inappropriate content',
+            'duplicate' => 'Duplicate resource',
+            'other' => 'Other concern',
+        ];
+        if (!isset($reasonLabels[$reasonCode])) Response::error('Choose a reason for reporting this resource.', 422);
+        if (self::characterLength($details) > 1200) Response::error('The additional details are too long.', 422);
+        $db = Database::connection();
+        $resource = $db->prepare("SELECT id FROM uploads WHERE id = ? AND status = 'approved' AND deleted_at IS NULL");
+        $resource->execute([$id]);
+        if (!$resource->fetchColumn()) Response::error('The resource could not be found.', 404);
+        $userId = (int) $user['id'];
+        $existing = $db->prepare("SELECT id FROM flags WHERE flaggable_type = 'upload' AND flaggable_id = ? AND reported_by = ? AND status = 'open' LIMIT 1");
+        $existing->execute([$id, $userId]);
+        if ($existing->fetchColumn()) Response::error('You already have an open report for this resource.', 409, ['code' => 'RESOURCE_REPORT_PENDING']);
+        $reason = $reasonLabels[$reasonCode] . ($details !== '' ? ': ' . $details : '');
+        $stmt = $db->prepare("INSERT INTO flags (flaggable_type, flaggable_id, reported_by, reason) VALUES ('upload', ?, ?, ?) RETURNING id");
+        $stmt->execute([$id, $userId, $reason]);
+        Response::json(['message' => 'Thank you. Your report has been sent to the CourseHubs administrators.', 'report_id' => (int) $stmt->fetchColumn()], 201);
+    }
+
+    public static function adminReports(): void
+    {
+        Auth::requireAdmin();
+        $status = trim((string) ($_GET['status'] ?? 'open'));
+        if (!in_array($status, ['open', 'resolved', 'all'], true)) $status = 'open';
+        $sql = "SELECT fl.id AS report_id, fl.reason, fl.status, fl.created_at, fl.resolution_note,
+                       u.id AS resource_id, u.title AS resource_title, u.type AS resource_type, u.status AS resource_status,
+                       u.deleted_at AS resource_deleted_at, u.mime_type, c.current_code AS course_code, c.title AS course_title,
+                       CONCAT(reporter.first_name, ' ', reporter.surname) AS reporter_name, reporter.email AS reporter_email,
+                       CONCAT(resolver.first_name, ' ', resolver.surname) AS resolver_name
+                FROM flags fl
+                JOIN uploads u ON u.id = fl.flaggable_id AND fl.flaggable_type = 'upload'
+                JOIN courses c ON c.id = u.course_id
+                JOIN users reporter ON reporter.id = fl.reported_by
+                LEFT JOIN users resolver ON resolver.id = fl.resolved_by";
+        $params = [];
+        if ($status !== 'all') { $sql .= ' WHERE fl.status = ?'; $params[] = $status; }
+        $sql .= " ORDER BY CASE fl.status WHEN 'open' THEN 0 ELSE 1 END, fl.created_at DESC LIMIT 200";
+        $stmt = Database::connection()->prepare($sql);
+        $stmt->execute($params);
+        Response::json(['reports' => $stmt->fetchAll()]);
+    }
+
+    public static function resolveReport(array $params): void
+    {
+        $admin = Auth::requireAdmin();
+        $id = self::positiveId($params['id'] ?? null);
+        $body = self::jsonBody();
+        $note = trim((string) ($body['resolution_note'] ?? ''));
+        if (self::characterLength($note) > 1000) Response::error('The resolution note is too long.', 422);
+        $stmt = Database::connection()->prepare(
+            "UPDATE flags SET status = 'resolved', resolved_by = ?, resolved_at = CURRENT_TIMESTAMP, resolution_note = ?
+             WHERE id = ? AND flaggable_type = 'upload' AND status = 'open' RETURNING id"
+        );
+        $stmt->execute([(int) $admin['id'], $note !== '' ? $note : null, $id]);
+        if (!$stmt->fetchColumn()) Response::error('The open resource report could not be found.', 404);
+        Response::json(['message' => 'Resource report marked as resolved.']);
+    }
+
     public static function forCourse(array $params): void
     {
-        Auth::requireUser();
+        $user = Auth::requireUser();
         $courseId = self::positiveId($params['id'] ?? null);
         if ($courseId < 1) Response::error('The course could not be found.', 404);
         $type = trim((string) ($_GET['type'] ?? ''));
         $sql = "SELECT u.id, u.title, u.type, u.file_size, u.original_filename, u.mime_type, u.created_at,
                        u.academic_session_id, s.name AS session_name,
-                       CONCAT(author.first_name, ' ', author.surname) AS uploader_name
+                       CONCAT(author.first_name, ' ', author.surname) AS uploader_name,
+                       CASE WHEN EXISTS (SELECT 1 FROM resource_bookmarks rb WHERE rb.user_id = ? AND rb.upload_id = u.id) THEN 1 ELSE 0 END AS is_bookmarked
                 FROM uploads u JOIN users author ON author.id = u.uploader_id
                 LEFT JOIN academic_sessions s ON s.id = u.academic_session_id
                 WHERE u.course_id = ? AND u.status = 'approved' AND u.deleted_at IS NULL";
-        $paramsSql = [$courseId];
+        $paramsSql = [(int) $user['id'], $courseId];
         if (in_array($type, self::TYPES, true)) { $sql .= ' AND u.type = ?'; $paramsSql[] = $type; }
         $sql .= ' ORDER BY u.created_at DESC LIMIT 100';
         $stmt = Database::connection()->prepare($sql);
@@ -245,7 +461,8 @@ final class ResourceController
         $sql = "SELECT u.id, u.title, u.type, u.file_size, u.original_filename, u.mime_type, u.status,
                        u.moderation_note, u.created_at, c.current_code AS course_code, c.title AS course_title,
                        s.name AS session_name, CONCAT(author.first_name, ' ', author.surname) AS uploader_name,
-                       author.email AS uploader_email
+                       author.email AS uploader_email,
+                       (SELECT COUNT(*) FROM download_logs dl WHERE dl.upload_id = u.id) AS download_count
                 FROM uploads u JOIN courses c ON c.id = u.course_id
                 JOIN users author ON author.id = u.uploader_id
                 LEFT JOIN academic_sessions s ON s.id = u.academic_session_id
@@ -296,8 +513,15 @@ final class ResourceController
         if (!ObjectStorage::isConfigured()) Response::error('This resource is temporarily unavailable. Please try again later.', 503);
         try {
             $url = ObjectStorage::presignedUrl((string) $resource['storage_key'], (string) $resource['original_filename'], (string) $resource['mime_type'], $action === 'preview');
+            $db = Database::connection();
+            $db->prepare(
+                'INSERT INTO resource_views (user_id, upload_id, first_viewed_at, last_viewed_at, view_count)
+                 VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1)
+                 ON CONFLICT (user_id, upload_id) DO UPDATE
+                 SET last_viewed_at = CURRENT_TIMESTAMP, view_count = resource_views.view_count + 1'
+            )->execute([(int) $user['id'], $id]);
             if ($action === 'download') {
-                Database::connection()->prepare('INSERT INTO download_logs (upload_id, user_id) VALUES (?, ?)')->execute([$id, (int) $user['id']]);
+                $db->prepare('INSERT INTO download_logs (upload_id, user_id) VALUES (?, ?)')->execute([$id, (int) $user['id']]);
             }
             Response::json(['url' => $url, 'expires_in' => 300]);
         } catch (Throwable $exception) {

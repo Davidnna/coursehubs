@@ -11,6 +11,8 @@ import Contact from './pages/Contact';
 import FAQ from './pages/FAQ';
 import Catalog from './pages/Catalog';
 import CourseDetail from './pages/CourseDetail';
+import ResourceLibrary from './pages/ResourceLibrary';
+import ResourceReports from './pages/ResourceReports';
 import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
 import Login from './pages/Login';
@@ -67,6 +69,7 @@ export default function App() {
             <Route element={<WorkspaceLayout/>}>
               <Route path="dashboard" element={<Dashboard/>}/>
               <Route path="catalog" element={<Catalog/>}/>
+              <Route path="resources" element={<ResourceLibrary/>}/>
               <Route path="courses/:id" element={<CourseDetail/>}/>
               <Route path="upload" element={<Upload/>}/>
               <Route path="academic-information" element={<Navigate to="/account#academic-information" replace/>}/>
@@ -95,6 +98,7 @@ export default function App() {
                 <Route path="admin/academics/offerings/:recordId/edit" element={<AcademicManagementBoundary><AcademicManagement/></AcademicManagementBoundary>}/>
                 <Route path="admin/academics/*" element={<Navigate to="/admin/academics/overview" replace/>}/>
               <Route path="admin/resources" element={<ResourceModeration/>}/>
+              <Route path="admin/resource-reports" element={<ResourceReports/>}/>
               <Route path="admin/academic-corrections" element={<AcademicCorrectionModeration/>}/>
               </Route>
             </Route>

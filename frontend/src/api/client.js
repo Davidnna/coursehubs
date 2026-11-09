@@ -15,6 +15,7 @@ const ERROR_MESSAGES = {
   RESET_TOKEN_EXPIRED: 'This password-reset link is invalid or has expired. Request a new one.',
   CSV_EMPTY: 'This CSV contains only column headings and no records. Add at least one row, save the file, and preview it again.',
   ACADEMIC_CORRECTION_PENDING: 'You already have an academic information request awaiting review. Track its status in Account settings.',
+  RESOURCE_REPORT_PENDING: 'You have already reported this resource. Your report is awaiting administrator review.',
 };
 
 const STATUS_MESSAGES = {
@@ -210,6 +211,19 @@ export function archiveCourseOffering(id) { return api.del(`/admin/academic/offe
 export function getAcademicStaff() { return api.get('/admin/academic/staff'); }
 
 // Course resource library and moderation.
+export function searchResources(filters = {}) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
+  });
+  const query = params.toString();
+  return api.get(`/resources${query ? `?${query}` : ''}`);
+}
+export function bookmarkResource(id) { return api.post(`/resources/${encodeURIComponent(id)}/bookmark`, {}); }
+export function unbookmarkResource(id) { return api.del(`/resources/${encodeURIComponent(id)}/bookmark`); }
+export function reportResource(id, payload) { return api.post(`/resources/${encodeURIComponent(id)}/reports`, payload); }
+export function getAdminResourceReports(status = 'open') { return api.get(`/admin/resource-reports?status=${encodeURIComponent(status)}`); }
+export function resolveAdminResourceReport(id, payload) { return api.patch(`/admin/resource-reports/${encodeURIComponent(id)}`, payload); }
 export function getResourceAccess() { return api.get('/resources/access'); }
 export function getResourceCourses() { return api.get('/resources/courses'); }
 export function createResource(formData) { return api.upload('/resources', formData); }

@@ -8,7 +8,7 @@ CourseHubs is an independently operated academic platform developed for the Ebon
 - Student and staff registration with email verification.
 - Email/password login, Google sign-in for existing accounts, logout, password recovery and protected application routes.
 - Account settings for profile details, profile photo, verified email changes, password changes and account deletion.
-- Private dashboard, live course catalogue and course details backed by PostgreSQL.
+- Private dashboard, live course catalogue, searchable resource library and course details backed by PostgreSQL.
 - Administrator-only academic management for faculties, departments, programmes, academic sessions, courses, programme course lists and lecturer assignments, with a temporary CSV importer for initial academic data setup.
 
 - Programme course lists support cross-department service/ancillary courses and credit loads up to 30 units, including SIWES and industrial training.
@@ -177,20 +177,34 @@ Do not use the Neon API token as the S3 access key. Keep the bucket private and 
 
 ### Resource routes
 
+- `/catalog` — course directory and course details.
+- `/resources` — searchable approved resource library with academic filters, bookmarks and recently viewed resources.
 - `/upload` — eligible contributor upload form and personal submission history.
 - `/admin/resources` — administrator moderation queue.
-- Course detail pages — approved materials, past questions and model answers.
+- `/admin/resource-reports` — administrator review of reports about published resources.
+- Course detail pages — approved materials, past questions and model answers, with bookmark controls.
 
 The resource API enforces authentication, contributor eligibility, student department/level course scope, assessment-resource role restrictions, file type and size checks, private storage, approved-only visibility and administrator moderation. Technical failures are written to server logs; user-facing responses remain generic.
 
 
 ## Academic information corrections
 
-Students can open `/academic-information` to review the department, programme and current level associated with their account. If an academic record is missing or incorrect, they can submit a correction request by selecting an active department/programme or entering the official name when it is not yet in the academic directory, selecting their correct level, and explaining the change.
+Students can open the Academic information section within `/account` to review the department, degree programme and current level associated with their account. If an academic record is missing or incorrect, they can submit a correction request by selecting an active department/programme or entering the official name when it is not yet in the academic directory, selecting their correct level, and explaining the change.
 
-A submitted request does not directly modify the student account. Administrators review requests at `/admin/academic-corrections`. If a student names a department or programme that is not yet in the directory, an administrator first adds it through Academic management and then maps the request to the verified active records. Approval updates the student's department, programme and level in one transaction. Rejections require an explanation. Students can track pending, approved and rejected requests, including administrator feedback, from the same page.
+A submitted request does not directly modify the student account. Administrators review requests at `/admin/academic-corrections`. If a student names a department or programme that is not yet in the directory, an administrator first adds it through Academic management and then maps the request to the verified active records. Approval updates the student's department, programme and level in one transaction. Rejections require an explanation. Students can track pending, approved and rejected requests, including administrator feedback, from the same Account settings section. The legacy `/academic-information` URL redirects to that section.
 
 The backend enforces student-only submission, active academic directory membership, programme-to-department consistency, one pending request per student, stale-profile checks during approval, and administrator-only decisions. The migration `0007_academic_information_corrections.sql` creates the unified correction history and imports any existing level-only correction requests without deleting the legacy records. No manual SQL or additional environment variables are required.
 
 
 In student-facing language, CourseHubs uses **programme course lists** or **courses for your programme** instead of the administrative term “course offerings”. These are the courses assigned to a programme, level, semester and academic session.
+
+
+## Resource discovery (Phase 3)
+
+The private `/resources` page provides a searchable directory of approved academic resources. Members can search resource titles, filenames, course codes and course names; filter by resource category, faculty, department, degree programme, level, semester and academic session; and sort by newest, most downloaded or title. Results use pagination. The `/catalog` course directory remains available for browsing course records and opening individual course pages.
+
+Signed-in users can bookmark resources and access their bookmarks from the Resource library. Previewing or requesting a download records a recent resource access, which appears in the Recently viewed view. Download-request counts are shown as an engagement indicator; they represent authenticated download-link requests recorded by the API, not a guarantee that a browser completed the file transfer.
+
+Members can report an approved resource for incorrect academic information, poor quality, copyright concerns, inappropriate content, duplication or another concern. Administrators review these reports at `/admin/resource-reports`, resolve them with an optional note, or unpublish a resource while resolving the report. The existing resource moderation queue remains at `/admin/resources`.
+
+Migration `0008_resource_discovery.sql` creates the resource bookmark and recent-access tables and adds an index for upload reports. The report workflow reuses the existing `flags` table. Migrations are applied automatically at backend startup; no manual SQL or additional environment variables are required.

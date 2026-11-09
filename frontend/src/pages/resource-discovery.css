@@ -1,0 +1,84 @@
+.resource-discovery-page,.resource-reports-page { max-width: 1500px; }
+.discovery-search-panel { padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.discovery-search-row { display: flex; align-items: end; gap: 12px; }
+.discovery-search { min-width: 0; min-height: 54px; }
+.discovery-search input { height: 52px; }
+.discovery-sort { display: grid; gap: 6px; flex: 0 0 190px; color: #7d899e; font-size: 9px; font-weight: 800; }
+.discovery-sort select { width: 100%; min-height: 54px; padding: 0 12px; border: 1px solid #dfe5ef; border-radius: 9px; color: var(--navy); background: #fff; font-size: 10px; font-weight: 700; }
+.discovery-filter-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 18px 0 10px; color: #8490a4; font-size: 9px; }
+.discovery-filter-heading > span:first-child { display: inline-flex; align-items: center; gap: 7px; color: var(--navy); font-weight: 800; }
+.discovery-filter-heading > span:last-child { font-size: 8px; }
+.discovery-filters { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 11px; align-items: end; }
+.discovery-filters .academic-filter-select { min-width: 0; }
+.discovery-filters .academic-filter-select select { min-height: 40px; }
+.discovery-clear { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 0 12px; border: 1px solid #dfe5ef; border-radius: 8px; color: #63718a; background: #fff; font-size: 9px; font-weight: 800; }
+.discovery-clear:hover { color: var(--blue); border-color: #cbd3ff; background: #f7f8ff; }
+.discovery-view-tabs { display: flex; gap: 7px; overflow-x: auto; margin: 18px 0 25px; padding: 5px; border: 1px solid var(--line); border-radius: 11px; background: #fff; scrollbar-width: thin; }
+.discovery-view-tabs button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; gap: 8px; min-height: 39px; padding: 0 14px; border: 0; border-radius: 7px; color: #718098; background: transparent; font-size: 9px; font-weight: 800; }
+.discovery-view-tabs button:hover { color: var(--navy); background: #f4f6fb; }
+.discovery-view-tabs button.is-active { color: #fff; background: var(--navy); }
+.discovery-results-heading { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin: 0 0 16px; }
+.discovery-results-heading h2 { margin: 6px 0 0; color: var(--navy); font: 700 24px/1.2 'Outfit',sans-serif; }
+.discovery-results-heading h2 span { color: #8c98ac; font: 600 14px 'Inter',sans-serif; }
+.discovery-resource-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; align-items: start; }
+.discovery-resource-card { display: grid; gap: 13px; min-width: 0; padding: 17px; border: 1px solid #e3e9f2; border-radius: 12px; background: #fff; box-shadow: 0 4px 18px rgba(27,43,77,.025); }
+.discovery-card-top { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.discovery-file-icon { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px; border-radius: 10px; color: var(--blue); background: #eef1ff; }
+.discovery-type { display: inline-flex; align-items: center; min-height: 23px; padding: 0 8px; border-radius: 20px; color: #596985; background: #f0f3f8; font-size: 8px; font-weight: 800; }
+.discovery-type-past_question { color: #8a6414; background: #fff6df; }
+.discovery-type-model_answer { color: #176b4a; background: #e9f8ef; }
+.discovery-bookmark { display: grid; place-items: center; flex: 0 0 32px; width: 32px; height: 32px; margin-left: auto; border: 1px solid #e2e7f0; border-radius: 8px; color: #8190a7; background: #fff; }
+.discovery-bookmark:hover,.discovery-bookmark.is-saved { color: var(--blue); border-color: #cbd3ff; background: #f0f2ff; }
+.discovery-bookmark.is-saved svg { fill: currentColor; }
+.discovery-card-content { display: grid; gap: 10px; min-width: 0; }
+.discovery-card-content h3 { margin: 0; color: var(--navy); font: 700 17px/1.35 'Outfit',sans-serif; overflow-wrap: anywhere; }
+.discovery-course-link { display: flex; align-items: center; gap: 7px; min-width: 0; color: #687793; text-decoration: none; font-size: 9px; }
+.discovery-course-link strong { flex: 0 0 auto; padding: 4px 6px; border-radius: 5px; color: var(--blue); background: #eef1ff; font-size: 8px; }
+.discovery-course-link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.discovery-course-link svg { flex: 0 0 auto; margin-left: auto; }
+.discovery-card-meta { display: grid; gap: 6px; color: #8995a8; font-size: 8px; }
+.discovery-card-meta span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.discovery-card-meta svg { flex: 0 0 auto; color: #98a3b5; }
+.discovery-card-footer { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid #edf0f5; }
+.discovery-file-meta { display: grid; gap: 4px; color: #64728b; font-size: 8px; font-weight: 700; }
+.discovery-file-meta small { color: #9aa4b4; font-size: 8px; font-weight: 500; }
+.discovery-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.discovery-actions .btn { min-height: 34px; }
+.discovery-card-secondary { display: flex; align-items: center; justify-content: space-between; gap: 9px; color: #9aa4b4; font-size: 8px; }
+.discovery-card-secondary > span { overflow-wrap: anywhere; }
+.discovery-report-link { display: inline-flex; align-items: center; flex: 0 0 auto; gap: 5px; padding: 3px 0; border: 0; color: #7b879c; background: transparent; font-size: 8px; font-weight: 700; }
+.discovery-report-link:hover:not(:disabled) { color: #a33348; }
+.discovery-report-link:disabled { cursor: default; opacity: .7; }
+.discovery-report-form { display: grid; gap: 10px; padding: 13px; border: 1px solid #e5eaf2; border-radius: 9px; background: #f9faff; }
+.discovery-report-heading { display: flex; align-items: center; justify-content: space-between; color: var(--navy); font-size: 10px; }
+.discovery-report-form .academic-filter-select { font-size: 8px; }
+.discovery-report-form .academic-filter-select select,.discovery-report-form .academic-filter-select textarea { width: 100%; min-height: 37px; padding: 8px 10px; border: 1px solid #dfe5ef; border-radius: 7px; color: var(--navy); background: #fff; font: inherit; font-size: 9px; font-weight: 600; }
+.discovery-report-form .academic-filter-select textarea { min-height: 65px; resize: vertical; }
+.discovery-report-actions { display: flex; justify-content: flex-end; gap: 7px; }
+.discovery-report-actions .btn { min-height: 32px; }
+.discovery-empty { margin-top: 10px; }
+.discovery-load-more { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 14px; margin: 22px 0 8px; }
+.discovery-load-more > span { color: #8995a8; font-size: 9px; }
+.resource-report-list { display: grid; gap: 13px; }
+.resource-report-card { display: grid; gap: 12px; padding: 18px; border: 1px solid #e3e9f2; border-radius: 12px; background: #fff; }
+.resource-report-card-head { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.resource-report-body { display: grid; gap: 6px; padding-left: 50px; color: #6e7b91; font-size: 9px; line-height: 1.6; }
+.resource-report-body p { margin: 0; color: #43516a; font-size: 10px; }
+.resource-report-actions { display: flex; flex-wrap: wrap; gap: 7px; padding-left: 50px; }
+.resource-report-resolution { display: grid; gap: 8px; margin-left: 50px; padding: 13px; border-radius: 9px; background: #f8f9fc; }
+.resource-report-resolution label { color: #596781; font-size: 9px; font-weight: 800; }
+.resource-report-resolution label span { color: #9aa4b4; font-weight: 500; }
+.resource-report-resolution textarea { width: 100%; min-height: 60px; padding: 9px 11px; border: 1px solid #dce2ed; border-radius: 7px; color: var(--navy); background: #fff; font: inherit; font-size: 9px; line-height: 1.5; resize: vertical; }
+.resource-report-resolution .resource-report-actions { padding-left: 0; }
+.discovery-search:focus-within,.discovery-sort select:focus,.discovery-filters select:focus,.discovery-report-form select:focus,.discovery-report-form textarea:focus,.resource-report-resolution textarea:focus { outline: 3px solid rgba(66,86,244,.16); outline-offset: 1px; border-color: var(--blue); }
+@media (max-width: 1100px) { .discovery-resource-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }.discovery-filters { grid-template-columns: repeat(3,minmax(0,1fr)); } }
+@media (max-width: 760px) { .discovery-search-row { align-items: stretch; flex-direction: column; }.discovery-sort { flex-basis: auto; }.discovery-filters { grid-template-columns: repeat(2,minmax(0,1fr)); }.discovery-results-heading { align-items: flex-start; flex-direction: column; }.resource-report-body,.resource-report-actions { padding-left: 0; }.resource-report-resolution { margin-left: 0; } }
+@media (max-width: 540px) { .discovery-search-panel { padding: 14px; }.discovery-resource-grid { grid-template-columns: 1fr; }.discovery-filters { grid-template-columns: 1fr; }.discovery-view-tabs button { min-height: 37px; padding: 0 10px; font-size: 8px; }.discovery-results-heading h2 { font-size: 21px; }.resource-report-card { padding: 14px; }.resource-report-card-head { flex-wrap: wrap; }.resource-report-card-head .resource-status { margin-left: auto; } }
+@media (prefers-reduced-motion: reduce) { .discovery-bookmark,.discovery-report-link,.discovery-clear { transition: none; } }
+.resource-bookmark-action { display:grid; place-items:center; flex:0 0 34px; width:34px; height:34px; border:1px solid #e2e7f0; border-radius:8px; color:#8190a7; background:#fff; }
+.resource-bookmark-action:hover,.resource-bookmark-action.is-saved { color:var(--blue); border-color:#cbd3ff; background:#f0f2ff; }
+.resource-bookmark-action.is-saved svg { fill:currentColor; }
+.course-resource-discovery-link { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:9px; margin:17px 0 0; padding:12px 14px; border:1px solid #e5eaf2; border-radius:9px; color:#7b879c; background:#fff; font-size:9px; }
+.course-resource-discovery-link a { display:inline-flex; align-items:center; gap:5px; color:var(--blue); font-weight:800; text-decoration:none; }
+.course-resource-discovery-link a:hover { text-decoration:underline; }
+.discovery-filter-warning { margin: 0 0 12px; font-size: 9px; }

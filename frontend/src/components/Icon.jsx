@@ -35,6 +35,7 @@ const paths = {
   info: <><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></>,
   graduation: <><path d="m2 9 10-5 10 5-10 5-10-5ZM6 11v6c3.8 3 8.2 3 12 0v-6M22 9v7"/></>,
   bookmark: <><path d="M6 3h12v18l-6-4-6 4V3Z"/></>,
+  flag: <><path d="M5 21V5m0 0c5-4 9 4 14 0v10c-5 4-9-4-14 0"/></>,
   filter: <><path d="M4 6h16M7 12h10m-7 6h4"/><circle cx="8" cy="6" r="1" fill="currentColor" stroke="none"/></>,
   alert: <><path d="M12 3 2 21h20L12 3ZM12 9v5M12 18h.01"/></>,
   download: <><path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4"/></>,

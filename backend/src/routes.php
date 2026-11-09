@@ -26,15 +26,21 @@ $router->get('/courses', [AcademicController::class, 'catalog']);
 $router->get('/courses/{id}', [AcademicController::class, 'courseDetail']);
 
 // Signed-in course resource library. Private files use short-lived Neon Object Storage links.
+$router->get('/resources', [ResourceController::class, 'search']);
 $router->get('/resources/access', [ResourceController::class, 'access']);
 $router->get('/resources/courses', [ResourceController::class, 'courseOptions']);
 $router->get('/resources/mine', [ResourceController::class, 'mine']);
 $router->post('/resources', [ResourceController::class, 'upload']);
 $router->get('/resources/{id}/file', [ResourceController::class, 'fileUrl']);
+$router->post('/resources/{id}/bookmark', [ResourceController::class, 'bookmark']);
+$router->delete('/resources/{id}/bookmark', [ResourceController::class, 'unbookmark']);
+$router->post('/resources/{id}/reports', [ResourceController::class, 'report']);
 $router->delete('/resources/{id}', [ResourceController::class, 'delete']);
 $router->get('/courses/{id}/resources', [ResourceController::class, 'forCourse']);
 $router->get('/admin/resources', [ResourceController::class, 'adminIndex']);
 $router->patch('/admin/resources/{id}/moderation', [ResourceController::class, 'moderate']);
+$router->get('/admin/resource-reports', [ResourceController::class, 'adminReports']);
+$router->patch('/admin/resource-reports/{id}', [ResourceController::class, 'resolveReport']);
 
 // Administrative academic management. Every route enforces administrator access server-side.
 $router->post('/admin/academic/import/csv', [AcademicCsvImportController::class, 'handle']);

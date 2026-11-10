@@ -221,11 +221,15 @@ final class AcademicCorrectionController
 
     public static function adminIndex(): void
     {
-        Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $status = strtolower(trim((string) ($_GET['status'] ?? 'pending')));
         if (!in_array($status, ['pending', 'approved', 'rejected', 'all'], true)) {
             $status = 'pending';
         }
+
+        $currentScope = Auth::departmentScopeFilter($admin, 'r.current_department_id');
+        $requestedScope = Auth::departmentScopeFilter($admin, 'r.requested_department_id');
+        $scopeSql = '(' . $currentScope['sql'] . ' OR ' . $requestedScope['sql'] . ')';
 
         $sql = '
             SELECT r.id, r.user_id, r.current_department_id, r.current_programme_id, r.current_level,
@@ -250,14 +254,18 @@ final class AcademicCorrectionController
             LEFT JOIN programmes requested_p ON requested_p.id = r.requested_programme_id
             LEFT JOIN departments approved_d ON approved_d.id = r.approved_department_id
             LEFT JOIN programmes approved_p ON approved_p.id = r.approved_programme_id
-            LEFT JOIN users reviewer ON reviewer.id = r.reviewed_by';
+            LEFT JOIN users reviewer ON reviewer.id = r.reviewed_by
+            WHERE ' . $scopeSql;
+
+        $params = array_merge($currentScope['params'], $requestedScope['params']);
         if ($status !== 'all') {
-            $sql .= ' WHERE r.status = ?';
+            $sql .= ' AND r.status = ?';
+            $params[] = $status;
         }
         $sql .= ' ORDER BY CASE WHEN r.status = \'pending\' THEN 0 ELSE 1 END, r.created_at DESC LIMIT 250';
 
         $stmt = Database::connection()->prepare($sql);
-        $stmt->execute($status === 'all' ? [] : [$status]);
+        $stmt->execute($params);
         $requests = array_map([self::class, 'requestPayload'], $stmt->fetchAll());
 
         Response::json(['requests' => $requests, 'status' => $status]);
@@ -265,7 +273,7 @@ final class AcademicCorrectionController
 
     public static function review(array $params): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $id = self::positiveId($params['id'] ?? null);
         $body = self::input();
         $statusRaw = $body['status'] ?? '';
@@ -303,6 +311,19 @@ final class AcademicCorrectionController
                 Response::error('This request has already been reviewed. Refresh the queue to see its latest status.', 409);
             }
 
+            $currentDepartmentId = self::positiveIdOrNull($request['current_department_id']);
+            $requestedDepartmentId = self::positiveIdOrNull($request['requested_department_id']);
+            if ($nextStatus === 'rejected') {
+                $canReviewCurrent = $currentDepartmentId !== null
+                    && Auth::canManageDepartment($admin, $currentDepartmentId);
+                $canReviewRequested = $requestedDepartmentId !== null
+                    && Auth::canManageDepartment($admin, $requestedDepartmentId);
+                if (!Auth::hasInstitutionScope($admin) && !$canReviewCurrent && !$canReviewRequested) {
+                    $db->rollBack();
+                    Response::error('You do not have permission to review this academic information request.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+                }
+            }
+
             $approvedDepartmentId = null;
             $approvedProgrammeId = null;
             $approvedLevel = null;
@@ -315,6 +336,18 @@ final class AcademicCorrectionController
                 if ($approvedDepartmentId === null || $approvedProgrammeId === null) {
                     $db->rollBack();
                     Response::error('Select an active department and programme before approving this request.', 422);
+                }
+
+                $requiredDepartments = array_values(array_unique(array_filter([
+                    $currentDepartmentId,
+                    $requestedDepartmentId,
+                    $approvedDepartmentId,
+                ])));
+                foreach ($requiredDepartments as $requiredDepartmentId) {
+                    if (!Auth::canManageDepartment($admin, $requiredDepartmentId)) {
+                        $db->rollBack();
+                        Response::error('You must have authority over both the current and requested departments to approve this change.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+                    }
                 }
 
                 $departmentStmt = $db->prepare('SELECT id FROM departments WHERE id = ? AND is_active IS TRUE LIMIT 1');

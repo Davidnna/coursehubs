@@ -434,9 +434,13 @@ final class ResourceController
 
     public static function adminReports(): void
     {
-        Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
+        $scope = Auth::departmentScopeFilter($admin, 'c.department_id');
         $status = trim((string) ($_GET['status'] ?? 'open'));
-        if (!in_array($status, ['open', 'resolved', 'all'], true)) $status = 'open';
+        if (!in_array($status, ['open', 'resolved', 'all'], true)) {
+            $status = 'open';
+        }
+
         $sql = "SELECT fl.id AS report_id, fl.reason, fl.status, fl.created_at, fl.resolution_note,
                        u.id AS resource_id, u.title AS resource_title, u.type AS resource_type, u.status AS resource_status,
                        u.deleted_at AS resource_deleted_at, u.mime_type, c.current_code AS course_code, c.title AS course_title,
@@ -446,10 +450,15 @@ final class ResourceController
                 JOIN uploads u ON u.id = fl.flaggable_id AND fl.flaggable_type = 'upload'
                 JOIN courses c ON c.id = u.course_id
                 JOIN users reporter ON reporter.id = fl.reported_by
-                LEFT JOIN users resolver ON resolver.id = fl.resolved_by";
-        $params = [];
-        if ($status !== 'all') { $sql .= ' WHERE fl.status = ?'; $params[] = $status; }
+                LEFT JOIN users resolver ON resolver.id = fl.resolved_by
+                WHERE {$scope['sql']}";
+        $params = $scope['params'];
+        if ($status !== 'all') {
+            $sql .= ' AND fl.status = ?';
+            $params[] = $status;
+        }
         $sql .= " ORDER BY CASE fl.status WHEN 'open' THEN 0 ELSE 1 END, fl.created_at DESC LIMIT 200";
+
         $stmt = Database::connection()->prepare($sql);
         $stmt->execute($params);
         Response::json(['reports' => $stmt->fetchAll()]);
@@ -457,17 +466,42 @@ final class ResourceController
 
     public static function resolveReport(array $params): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $id = self::positiveId($params['id'] ?? null);
         $body = self::jsonBody();
         $note = trim((string) ($body['resolution_note'] ?? ''));
-        if (self::characterLength($note) > 1000) Response::error('The resolution note is too long.', 422);
-        $stmt = Database::connection()->prepare(
-            "UPDATE flags SET status = 'resolved', resolved_by = ?, resolved_at = CURRENT_TIMESTAMP, resolution_note = ?
+        if (self::characterLength($note) > 1000) {
+            Response::error('The resolution note is too long.', 422);
+        }
+
+        $db = Database::connection();
+        $lookup = $db->prepare(
+            "SELECT fl.id, c.department_id
+             FROM flags fl
+             JOIN uploads u ON u.id = fl.flaggable_id AND fl.flaggable_type = 'upload'
+             JOIN courses c ON c.id = u.course_id
+             WHERE fl.id = ? AND fl.status = 'open'"
+        );
+        $lookup->execute([$id]);
+        $report = $lookup->fetch();
+        if (!$report) {
+            Response::error('The open resource report could not be found.', 404);
+        }
+        if ($report['department_id'] === null
+            ? !Auth::canManageScope($admin, 'institution', null)
+            : !Auth::canManageDepartment($admin, (int) $report['department_id'])) {
+            Response::error('You do not have permission to resolve this resource report.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
+
+        $stmt = $db->prepare(
+            "UPDATE flags
+             SET status = 'resolved', resolved_by = ?, resolved_at = CURRENT_TIMESTAMP, resolution_note = ?
              WHERE id = ? AND flaggable_type = 'upload' AND status = 'open' RETURNING id"
         );
         $stmt->execute([(int) $admin['id'], $note !== '' ? $note : null, $id]);
-        if (!$stmt->fetchColumn()) Response::error('The open resource report could not be found.', 404);
+        if (!$stmt->fetchColumn()) {
+            Response::error('The open resource report could not be found.', 404);
+        }
         Response::json(['message' => 'Resource report marked as resolved.']);
     }
 
@@ -509,21 +543,30 @@ final class ResourceController
 
     public static function adminIndex(): void
     {
-        Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
+        $scope = Auth::departmentScopeFilter($admin, 'c.department_id');
         $status = trim((string) ($_GET['status'] ?? 'pending'));
-        if (!in_array($status, ['pending', 'approved', 'rejected', 'all'], true)) $status = 'pending';
+        if (!in_array($status, ['pending', 'approved', 'rejected', 'all'], true)) {
+            $status = 'pending';
+        }
+
         $sql = "SELECT u.id, u.title, u.type, u.file_size, u.original_filename, u.mime_type, u.status,
                        u.moderation_note, u.created_at, c.current_code AS course_code, c.title AS course_title,
                        s.name AS session_name, CONCAT(author.first_name, ' ', author.surname) AS uploader_name,
                        author.email AS uploader_email,
                        (SELECT COUNT(*) FROM download_logs dl WHERE dl.upload_id = u.id) AS download_count
-                FROM uploads u JOIN courses c ON c.id = u.course_id
+                FROM uploads u
+                JOIN courses c ON c.id = u.course_id
                 JOIN users author ON author.id = u.uploader_id
                 LEFT JOIN academic_sessions s ON s.id = u.academic_session_id
-                WHERE u.deleted_at IS NULL";
-        $params = [];
-        if ($status !== 'all') { $sql .= ' AND u.status = ?'; $params[] = $status; }
+                WHERE u.deleted_at IS NULL AND {$scope['sql']}";
+        $params = $scope['params'];
+        if ($status !== 'all') {
+            $sql .= ' AND u.status = ?';
+            $params[] = $status;
+        }
         $sql .= ' ORDER BY CASE u.status WHEN \'pending\' THEN 0 ELSE 1 END, u.created_at DESC LIMIT 150';
+
         $stmt = Database::connection()->prepare($sql);
         $stmt->execute($params);
         Response::json(['resources' => $stmt->fetchAll()]);
@@ -531,20 +574,48 @@ final class ResourceController
 
     public static function moderate(array $params): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $id = self::positiveId($params['id'] ?? null);
         $body = self::jsonBody();
         $status = trim((string) ($body['status'] ?? ''));
         $note = trim((string) ($body['moderation_note'] ?? ''));
-        if (!in_array($status, ['approved', 'rejected'], true)) Response::error('Choose approve or reject.', 422);
-        if ($status === 'rejected' && ($note === '' || self::characterLength($note) > 1000)) Response::error('Add a short explanation when rejecting a resource.', 422, ['fields' => ['moderation_note' => 'Add a short explanation for the contributor.']]);
-        if (self::characterLength($note) > 1000) Response::error('The moderation note is too long.', 422);
-        $stmt = Database::connection()->prepare(
+
+        if (!in_array($status, ['approved', 'rejected'], true)) {
+            Response::error('Choose approve or reject.', 422);
+        }
+        if ($status === 'rejected' && ($note === '' || self::characterLength($note) > 1000)) {
+            Response::error('Add a short explanation when rejecting a resource.', 422, ['fields' => ['moderation_note' => 'Add a short explanation for the contributor.']]);
+        }
+        if (self::characterLength($note) > 1000) {
+            Response::error('The moderation note is too long.', 422);
+        }
+
+        $db = Database::connection();
+        $lookup = $db->prepare(
+            'SELECT u.id, c.department_id
+             FROM uploads u
+             JOIN courses c ON c.id = u.course_id
+             WHERE u.id = ? AND u.deleted_at IS NULL'
+        );
+        $lookup->execute([$id]);
+        $resource = $lookup->fetch();
+        if (!$resource) {
+            Response::error('The resource could not be found.', 404);
+        }
+        if ($resource['department_id'] === null
+            ? !Auth::canManageScope($admin, 'institution', null)
+            : !Auth::canManageDepartment($admin, (int) $resource['department_id'])) {
+            Response::error('You do not have permission to review this resource.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
+
+        $stmt = $db->prepare(
             'UPDATE uploads SET status = ?, moderation_note = ?, moderated_by = ?, moderated_at = CURRENT_TIMESTAMP
              WHERE id = ? AND deleted_at IS NULL RETURNING id'
         );
         $stmt->execute([$status, $note !== '' ? $note : null, (int) $admin['id'], $id]);
-        if (!$stmt->fetchColumn()) Response::error('The resource could not be found.', 404);
+        if (!$stmt->fetchColumn()) {
+            Response::error('The resource could not be found.', 404);
+        }
         Response::json(['message' => $status === 'approved' ? 'Resource approved and published.' : 'Resource rejected.']);
     }
 

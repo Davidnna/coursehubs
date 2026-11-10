@@ -1,6 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
-import { canManageAdministrators } from './permissions';
+import { canManageAdministrators, canManageAcademicRecords } from './permissions';
 
 function LoadingScreen() {
     return <main className="route-loading" role="status"><span className="loading-spinner" /><p>Checking your session…</p></main>;
@@ -26,7 +26,7 @@ export function AdminRoute() {
     const { user, loading } = useAuth();
     if (loading) return <LoadingScreen />;
     if (!user) return <Navigate to="/login" replace />;
-    if (!user.is_admin) return <Navigate to="/dashboard" replace />;
+    if (!canManageAcademicRecords(user)) return <Navigate to="/dashboard" replace />;
     return <Outlet />;
 }
 

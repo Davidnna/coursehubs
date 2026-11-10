@@ -217,6 +217,23 @@ final class AdminManagementController
                     ? 'promoted'
                     : 'demoted';
 
+                if ($action === 'demoted' && $matchingAssignment['role'] === 'super_admin') {
+                    $otherSuperAdmins = $db->prepare(
+                        "SELECT COUNT(*) FROM administrator_scopes
+                         WHERE scope_type = ? AND scope_id IS NOT DISTINCT FROM ?
+                           AND role = 'super_admin' AND id <> ?"
+                    );
+                    $otherSuperAdmins->execute([
+                        $scopeType,
+                        $scopeId,
+                        (int) $matchingAssignment['id'],
+                    ]);
+                    if ((int) $otherSuperAdmins->fetchColumn() === 0) {
+                        $db->rollBack();
+                        Response::error('The last Super Administrator for this scope cannot be demoted.', 409, ['code' => 'LAST_SCOPE_SUPER_ADMIN']);
+                    }
+                }
+
                 $update = $db->prepare(
                     'UPDATE administrator_scopes
                      SET role = ?, assigned_by = ?

@@ -1600,3 +1600,24 @@
         flex-direction:column;
     }
 }
+
+
+.academic-scope-note {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-self: start;
+    padding: 22px;
+}
+
+.academic-scope-note strong {
+    color: var(--ink, #172033);
+    font-size: 15px;
+}
+
+.academic-scope-note p {
+    margin: 0;
+    color: var(--muted, #687386);
+    font-size: 13px;
+    line-height: 1.65;
+}

@@ -249,12 +249,12 @@ export default function Account() {
 
                     <section className="account-card account-danger-card" aria-labelledby="account-delete-heading">
                         <div className="account-card-heading"><div><span className="account-section-kicker account-danger-kicker">PERMANENT ACTION</span><h2 id="account-delete-heading">Delete account</h2><p>Delete your CourseHubs access and remove personal profile details. This action cannot be undone.</p></div><span className="account-card-icon account-danger-icon"><Icon name="alert" size={20} /></span></div>
-                        {account?.is_super_admin && <Notice kind="error">Super administrator accounts cannot be deleted from their own session. Contact another authorised administrator.</Notice>}
+                        {(account?.is_super_admin || account?.admin_scopes?.some((scope) => scope.role === 'super_admin')) && <Notice kind="error">Accounts with Super Administrator responsibilities cannot be deleted from their own session. Ask another authorised administrator to update those appointments first.</Notice>}
                         {deleteNotice && <Notice kind="error">{deleteNotice.message}</Notice>}
                         <form onSubmit={submitDeleteAccount} className="account-form">
                             <div className="field"><label htmlFor="account-delete-password">Current password</label><input id="account-delete-password" type="password" autoComplete="current-password" required value={deleteForm.current_password} onChange={(event) => setDeleteForm((current) => ({ ...current, current_password: event.target.value }))} /></div>
                             <div className="field"><label htmlFor="account-delete-confirm">Type DELETE to confirm</label><input id="account-delete-confirm" autoComplete="off" required value={deleteForm.confirmation} onChange={(event) => setDeleteForm((current) => ({ ...current, confirmation: event.target.value }))} /></div>
-                            <div className="account-form-actions"><button className="btn btn-danger" type="submit" disabled={deleteBusy || deleteForm.confirmation !== 'DELETE' || account?.is_super_admin}>{deleteBusy ? 'Deleting account…' : 'Delete my account'} <Icon name="trash" size={17} /></button></div>
+                            <div className="account-form-actions"><button className="btn btn-danger" type="submit" disabled={deleteBusy || deleteForm.confirmation !== 'DELETE' || (account?.is_super_admin || account?.admin_scopes?.some((scope) => scope.role === 'super_admin'))}>{deleteBusy ? 'Deleting account…' : 'Delete my account'} <Icon name="trash" size={17} /></button></div>
                         </form>
                     </section>
                 </div>

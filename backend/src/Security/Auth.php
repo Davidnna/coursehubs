@@ -125,14 +125,124 @@ final class Auth
         return false;
     }
 
-    public static function requireScope(string $scopeType, ?int $scopeId = null, bool $superAdminOnly = false): array
+    public static function hasInstitutionScope(array $user, bool $superAdminOnly = false): bool
     {
-        $user = self::requireAdministrator();
-        if (!self::canManageScope($user, $scopeType, $scopeId, $superAdminOnly)) {
-            Response::error('You do not have permission to manage records in this academic scope.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        $scopes = $user['admin_scopes'] ?? self::scopesFor((int) $user['id']);
+        foreach ($scopes as $scope) {
+            if ($scope['scope_type'] === 'institution'
+                && (!$superAdminOnly || $scope['role'] === 'super_admin')) {
+                return true;
+            }
         }
-        return $user;
+
+        return $scopes === []
+            && filter_var($user['is_admin'] ?? false, FILTER_VALIDATE_BOOLEAN)
+            && (!$superAdminOnly || filter_var($user['is_super_admin'] ?? false, FILTER_VALIDATE_BOOLEAN));
     }
+
+    public static function canManageDepartment(array $user, int $departmentId, bool $superAdminOnly = false): bool
+    {
+        return self::canManageScope($user, 'department', $departmentId, $superAdminOnly);
+    }
+
+    public static function canManageFaculty(array $user, int $facultyId, bool $superAdminOnly = false): bool
+    {
+        return self::canManageScope($user, 'faculty', $facultyId, $superAdminOnly);
+    }
+
+
+    public static function canManageCourse(array $user, int $courseId, bool $superAdminOnly = false): bool
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT department_id FROM courses WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        $stmt->execute([$courseId]);
+        $departmentId = $stmt->fetchColumn();
+
+        if ($departmentId === false) {
+            return false;
+        }
+
+        if ($departmentId === null) {
+            return self::canManageScope($user, 'institution', null, $superAdminOnly);
+        }
+
+        return self::canManageDepartment($user, (int) $departmentId, $superAdminOnly);
+    }
+
+    public static function canManageOffering(array $user, int $offeringId, bool $superAdminOnly = false): bool
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT COALESCE(p.department_id, c.department_id) AS department_id
+             FROM course_offerings co
+             JOIN courses c ON c.id = co.course_id
+             LEFT JOIN programmes p ON p.id = co.programme_id
+             WHERE co.id = ? AND co.deleted_at IS NULL AND c.deleted_at IS NULL
+             LIMIT 1'
+        );
+        $stmt->execute([$offeringId]);
+        $departmentId = $stmt->fetchColumn();
+
+        if ($departmentId === false) {
+            return false;
+        }
+
+        if ($departmentId === null) {
+            return self::canManageScope($user, 'institution', null, $superAdminOnly);
+        }
+
+        return self::canManageDepartment($user, (int) $departmentId, $superAdminOnly);
+    }
+
+    public static function departmentScopeFilter(array $user, string $departmentExpression): array
+    {
+        if (self::hasInstitutionScope($user)) {
+            return ['sql' => '1 = 1', 'params' => []];
+        }
+
+        $conditions = [];
+        $params = [];
+        foreach (($user['admin_scopes'] ?? self::scopesFor((int) $user['id'])) as $scope) {
+            if ($scope['scope_type'] === 'faculty') {
+                $conditions[] = $departmentExpression . ' IN (SELECT id FROM departments WHERE faculty_id = ?)';
+                $params[] = (int) $scope['scope_id'];
+            } elseif ($scope['scope_type'] === 'department') {
+                $conditions[] = $departmentExpression . ' = ?';
+                $params[] = (int) $scope['scope_id'];
+            }
+        }
+
+        return [
+            'sql' => $conditions === [] ? '1 = 0' : '(' . implode(' OR ', $conditions) . ')',
+            'params' => $params,
+        ];
+    }
+
+    public static function facultyScopeFilter(array $user, string $facultyExpression): array
+    {
+        if (self::hasInstitutionScope($user)) {
+            return ['sql' => '1 = 1', 'params' => []];
+        }
+
+        $conditions = [];
+        $params = [];
+        foreach (($user['admin_scopes'] ?? self::scopesFor((int) $user['id'])) as $scope) {
+            if ($scope['scope_type'] === 'faculty') {
+                $conditions[] = $facultyExpression . ' = ?';
+                $params[] = (int) $scope['scope_id'];
+            } elseif ($scope['scope_type'] === 'department') {
+                $conditions[] = $facultyExpression . ' = (SELECT faculty_id FROM departments WHERE id = ?)';
+                $params[] = (int) $scope['scope_id'];
+            }
+        }
+
+        return [
+            'sql' => $conditions === [] ? '1 = 0' : '(' . implode(' OR ', $conditions) . ')',
+            'params' => $params,
+        ];
+    }
+
+
 
     private static function bearerToken(): ?string
     {

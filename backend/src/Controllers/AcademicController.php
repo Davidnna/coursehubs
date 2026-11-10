@@ -29,51 +29,115 @@ final class AcademicController
 
     public static function overview(): void
     {
-        Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $db = Database::connection();
+        $departmentScope = Auth::departmentScopeFilter($admin, 'd.id');
+        $facultyScope = Auth::facultyScopeFilter($admin, 'f.id');
         $counts = [];
-        foreach ([
-            'faculties' => 'SELECT COUNT(*) FROM faculties WHERE is_active IS TRUE',
-            'departments' => 'SELECT COUNT(*) FROM departments WHERE is_active IS TRUE',
-            'programmes' => 'SELECT COUNT(*) FROM programmes WHERE is_active IS TRUE',
-            'courses' => 'SELECT COUNT(*) FROM courses WHERE is_active IS TRUE AND deleted_at IS NULL',
-            'offerings' => 'SELECT COUNT(*) FROM course_offerings WHERE deleted_at IS NULL',
-            'sessions' => 'SELECT COUNT(*) FROM academic_sessions',
-        ] as $key => $sql) {
-            $counts[$key] = (int) $db->query($sql)->fetchColumn();
+
+        $queries = [
+            'faculties' => [
+                "SELECT COUNT(*) FROM faculties f WHERE f.is_active IS TRUE AND {$facultyScope['sql']}",
+                $facultyScope['params'],
+            ],
+            'departments' => [
+                "SELECT COUNT(*) FROM departments d WHERE d.is_active IS TRUE AND {$departmentScope['sql']}",
+                $departmentScope['params'],
+            ],
+            'programmes' => [
+                "SELECT COUNT(*) FROM programmes p JOIN departments d ON d.id = p.department_id
+                 WHERE p.is_active IS TRUE AND {$departmentScope['sql']}",
+                $departmentScope['params'],
+            ],
+            'courses' => [
+                "SELECT COUNT(*) FROM courses c
+                 LEFT JOIN departments d ON d.id = c.department_id
+                 WHERE c.is_active IS TRUE AND c.deleted_at IS NULL
+                   AND ({$departmentScope['sql']} OR c.is_university_wide IS TRUE)",
+                $departmentScope['params'],
+            ],
+            'offerings' => [
+                "SELECT COUNT(*) FROM course_offerings co
+                 JOIN courses c ON c.id = co.course_id
+                 LEFT JOIN programmes p ON p.id = co.programme_id
+                 LEFT JOIN departments d ON d.id = COALESCE(p.department_id, c.department_id)
+                 WHERE co.deleted_at IS NULL AND c.deleted_at IS NULL AND {$departmentScope['sql']}",
+                $departmentScope['params'],
+            ],
+        ];
+
+        foreach ($queries as $key => [$sql, $params]) {
+            $stmt = $db->prepare($sql);
+            $stmt->execute($params);
+            $counts[$key] = (int) $stmt->fetchColumn();
         }
-        $current = $db->query('SELECT id, name, 1 AS is_current FROM academic_sessions WHERE is_current IS TRUE LIMIT 1')->fetch() ?: null;
+
+        $counts['sessions'] = (int) $db->query('SELECT COUNT(*) FROM academic_sessions')->fetchColumn();
+        $current = $db->query(
+            'SELECT id, name, 1 AS is_current FROM academic_sessions WHERE is_current IS TRUE LIMIT 1'
+        )->fetch() ?: null;
+
         Response::json(['counts' => $counts, 'current_session' => $current]);
     }
 
     public static function adminStructure(): void
     {
-        Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $db = Database::connection();
-        $faculties = $db->query(
-            'SELECT f.id, f.name, f.code, f.description, CASE WHEN f.is_active IS TRUE THEN 1 ELSE 0 END AS is_active, f.created_at, f.updated_at, COUNT(DISTINCT d.id) AS department_count
-             FROM faculties f LEFT JOIN departments d ON d.faculty_id = f.id
-             GROUP BY f.id ORDER BY f.name'
-        )->fetchAll();
-        $departments = $db->query(
-            'SELECT d.id, d.faculty_id, d.name, d.code, d.description, CASE WHEN d.is_active IS TRUE THEN 1 ELSE 0 END AS is_active, d.created_at, d.updated_at, f.name AS faculty_name, COUNT(DISTINCT p.id) AS programme_count
-             FROM departments d JOIN faculties f ON f.id = d.faculty_id
+        $facultyScope = Auth::facultyScopeFilter($admin, 'f.id');
+        $departmentScope = Auth::departmentScopeFilter($admin, 'd.id');
+
+        $faculties = $db->prepare(
+            "SELECT f.id, f.name, f.code, f.description,
+                    CASE WHEN f.is_active IS TRUE THEN 1 ELSE 0 END AS is_active,
+                    f.created_at, f.updated_at, COUNT(DISTINCT d.id) AS department_count
+             FROM faculties f
+             LEFT JOIN departments d ON d.faculty_id = f.id AND {$departmentScope['sql']}
+             WHERE {$facultyScope['sql']}
+             GROUP BY f.id
+             ORDER BY f.name"
+        );
+        $faculties->execute(array_merge($departmentScope['params'], $facultyScope['params']));
+
+        $departments = $db->prepare(
+            "SELECT d.id, d.faculty_id, d.name, d.code, d.description,
+                    CASE WHEN d.is_active IS TRUE THEN 1 ELSE 0 END AS is_active,
+                    d.created_at, d.updated_at, f.name AS faculty_name,
+                    COUNT(DISTINCT p.id) AS programme_count
+             FROM departments d
+             JOIN faculties f ON f.id = d.faculty_id
              LEFT JOIN programmes p ON p.department_id = d.id
-             GROUP BY d.id, f.name ORDER BY f.name, d.name'
-        )->fetchAll();
-        $programmes = $db->query(
-            'SELECT p.id, p.department_id, p.name, p.code, p.award, p.duration_years, p.description, CASE WHEN p.is_active IS TRUE THEN 1 ELSE 0 END AS is_active, p.created_at, p.updated_at, d.name AS department_name, f.name AS faculty_name
-             FROM programmes p JOIN departments d ON d.id = p.department_id
-             JOIN faculties f ON f.id = d.faculty_id ORDER BY f.name, d.name, p.name'
-        )->fetchAll();
-        Response::json(['faculties' => $faculties, 'departments' => $departments, 'programmes' => $programmes]);
+             WHERE {$departmentScope['sql']}
+             GROUP BY d.id, f.name
+             ORDER BY f.name, d.name"
+        );
+        $departments->execute($departmentScope['params']);
+
+        $programmes = $db->prepare(
+            "SELECT p.id, p.department_id, p.name, p.code, p.award, p.duration_years, p.description,
+                    CASE WHEN p.is_active IS TRUE THEN 1 ELSE 0 END AS is_active,
+                    p.created_at, p.updated_at, d.name AS department_name, f.name AS faculty_name
+             FROM programmes p
+             JOIN departments d ON d.id = p.department_id
+             JOIN faculties f ON f.id = d.faculty_id
+             WHERE {$departmentScope['sql']}
+             ORDER BY f.name, d.name, p.name"
+        );
+        $programmes->execute($departmentScope['params']);
+
+        Response::json([
+            'faculties' => $faculties->fetchAll(),
+            'departments' => $departments->fetchAll(),
+            'programmes' => $programmes->fetchAll(),
+        ]);
     }
 
     public static function sessions(): void
     {
-        Auth::requireAdmin();
+        Auth::requireAdministrator();
         $stmt = Database::connection()->query(
-            'SELECT id, name, CASE WHEN is_current IS TRUE THEN 1 ELSE 0 END AS is_current, started_at, ended_at, created_at
+            'SELECT id, name, CASE WHEN is_current IS TRUE THEN 1 ELSE 0 END AS is_current,
+                    started_at, ended_at, created_at
              FROM academic_sessions ORDER BY name DESC'
         );
         Response::json(['sessions' => $stmt->fetchAll()]);
@@ -156,250 +220,438 @@ final class AcademicController
 
     public static function updateFaculty(array $params): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $id = self::positiveId($params['id'] ?? null);
+        if (!Auth::canManageFaculty($admin, $id)) {
+            Response::error('You do not have permission to manage this faculty.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
+
         $body = self::input();
         $db = Database::connection();
         $exists = self::exists($db, 'faculties', $id);
-        if (!$exists) Response::error('The faculty could not be found.', 404);
+        if (!$exists) {
+            Response::error('The faculty could not be found.', 404);
+        }
+
         $active = array_key_exists('is_active', $body) ? self::boolean($body['is_active']) : null;
         if ($active === false) {
             $check = $db->prepare('SELECT COUNT(*) FROM departments WHERE faculty_id = ? AND is_active IS TRUE');
             $check->execute([$id]);
-            if ((int) $check->fetchColumn() > 0) Response::error('Archive the faculty departments before archiving this faculty.', 409);
+            if ((int) $check->fetchColumn() > 0) {
+                Response::error('Archive the faculty departments before archiving this faculty.', 409);
+            }
         }
+
         [$name, $code, $description] = self::validateNamedRecord($body, 'faculty', true);
         $sql = 'UPDATE faculties SET name = ?, code = ?, description = ?, updated_by = ?';
         $values = [$name, $code, $description, (int) $admin['id']];
-        if ($active !== null) { $sql .= ', is_active = ?'; $values[] = $active; }
-        $sql .= ' WHERE id = ?'; $values[] = $id;
+        if ($active !== null) {
+            $sql .= ', is_active = ?';
+            $values[] = $active;
+        }
+        $sql .= ' WHERE id = ?';
+        $values[] = $id;
+
         try {
-            $stmt = $db->prepare($sql); $stmt->execute($values);
+            $stmt = $db->prepare($sql);
+            $stmt->execute($values);
             self::audit($db, (int) $admin['id'], 'faculty_updated', 'faculty', $id, 'Updated faculty ' . $name . '.');
             Response::json(['message' => 'Faculty updated.']);
-        } catch (PDOException $exception) { self::databaseConflict($exception, 'A faculty with that name or code already exists.'); }
+        } catch (PDOException $exception) {
+            self::databaseConflict($exception, 'A faculty with that name or code already exists.');
+        }
     }
 
     public static function createDepartment(): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $body = self::input();
         $facultyId = self::positiveId($body['faculty_id'] ?? null);
         [$name, $code, $description] = self::validateNamedRecord($body, 'department');
         $db = Database::connection();
+
         $faculty = $db->prepare('SELECT id FROM faculties WHERE id = ? AND is_active IS TRUE');
         $faculty->execute([$facultyId]);
-        if (!$faculty->fetchColumn()) Response::error('Choose an active faculty.', 422, ['fields' => ['faculty_id' => 'Choose an active faculty.']]);
+        if (!$faculty->fetchColumn()) {
+            Response::error('Choose an active faculty.', 422, ['fields' => ['faculty_id' => 'Choose an active faculty.']]);
+        }
+        if (!Auth::canManageFaculty($admin, $facultyId)) {
+            Response::error('You do not have permission to add departments to this faculty.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
+
         try {
-            $stmt = $db->prepare('INSERT INTO departments (faculty_id, name, code, description, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?) RETURNING id');
+            $stmt = $db->prepare(
+                'INSERT INTO departments (faculty_id, name, code, description, created_by, updated_by)
+                 VALUES (?, ?, ?, ?, ?, ?) RETURNING id'
+            );
             $stmt->execute([$facultyId, $name, $code, $description, (int) $admin['id'], (int) $admin['id']]);
             $id = (int) $stmt->fetchColumn();
             self::audit($db, (int) $admin['id'], 'department_created', 'department', $id, 'Created department ' . $name . '.');
             Response::json(['message' => 'Department created.', 'id' => $id], 201);
-        } catch (PDOException $exception) { self::databaseConflict($exception, 'That department name or code already exists in the selected faculty.'); }
+        } catch (PDOException $exception) {
+            self::databaseConflict($exception, 'That department name or code already exists in the selected faculty.');
+        }
     }
 
     public static function updateDepartment(array $params): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $id = self::positiveId($params['id'] ?? null);
         $body = self::input();
         $db = Database::connection();
-        if (!self::exists($db, 'departments', $id)) Response::error('The department could not be found.', 404);
-        $facultyId = self::positiveId($body['faculty_id'] ?? null);
+
+        $existingStmt = $db->prepare('SELECT id, faculty_id FROM departments WHERE id = ? LIMIT 1');
+        $existingStmt->execute([$id]);
+        $existing = $existingStmt->fetch();
+        if (!$existing) {
+            Response::error('The department could not be found.', 404);
+        }
+
+        $oldFacultyId = (int) $existing['faculty_id'];
+        if (!Auth::canManageDepartment($admin, $id)) {
+            Response::error('You do not have permission to manage this department.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
+
+        $facultyId = self::positiveId($body['faculty_id'] ?? $oldFacultyId);
         $faculty = $db->prepare('SELECT id FROM faculties WHERE id = ? AND is_active IS TRUE');
         $faculty->execute([$facultyId]);
-        if (!$faculty->fetchColumn()) Response::error('Choose an active faculty.', 422, ['fields' => ['faculty_id' => 'Choose an active faculty.']]);
+        if (!$faculty->fetchColumn()) {
+            Response::error('Choose an active faculty.', 422, ['fields' => ['faculty_id' => 'Choose an active faculty.']]);
+        }
+        if ($facultyId !== $oldFacultyId && !Auth::canManageFaculty($admin, $facultyId)) {
+            Response::error('You cannot move this department outside your administrative scope.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
+
         $active = array_key_exists('is_active', $body) ? self::boolean($body['is_active']) : null;
         if ($active === false) {
             $check = $db->prepare('SELECT COUNT(*) FROM programmes WHERE department_id = ? AND is_active IS TRUE');
             $check->execute([$id]);
-            if ((int) $check->fetchColumn() > 0) Response::error('Archive the department programmes before archiving this department.', 409);
+            if ((int) $check->fetchColumn() > 0) {
+                Response::error('Archive the department degree programmes before archiving this department.', 409);
+            }
             $courseCheck = $db->prepare('SELECT COUNT(*) FROM courses WHERE department_id = ? AND is_active IS TRUE AND deleted_at IS NULL');
             $courseCheck->execute([$id]);
-            if ((int) $courseCheck->fetchColumn() > 0) Response::error('Archive or move the department courses before archiving this department.', 409);
+            if ((int) $courseCheck->fetchColumn() > 0) {
+                Response::error('Archive or move the department courses before archiving this department.', 409);
+            }
         }
+
         [$name, $code, $description] = self::validateNamedRecord($body, 'department', true);
         $sql = 'UPDATE departments SET faculty_id = ?, name = ?, code = ?, description = ?, updated_by = ?';
         $values = [$facultyId, $name, $code, $description, (int) $admin['id']];
-        if ($active !== null) { $sql .= ', is_active = ?'; $values[] = $active; }
-        $sql .= ' WHERE id = ?'; $values[] = $id;
+        if ($active !== null) {
+            $sql .= ', is_active = ?';
+            $values[] = $active;
+        }
+        $sql .= ' WHERE id = ?';
+        $values[] = $id;
+
         try {
-            $stmt = $db->prepare($sql); $stmt->execute($values);
+            $stmt = $db->prepare($sql);
+            $stmt->execute($values);
             self::audit($db, (int) $admin['id'], 'department_updated', 'department', $id, 'Updated department ' . $name . '.');
             Response::json(['message' => 'Department updated.']);
-        } catch (PDOException $exception) { self::databaseConflict($exception, 'That department name or code already exists in the selected faculty.'); }
+        } catch (PDOException $exception) {
+            self::databaseConflict($exception, 'That department name or code already exists in the selected faculty.');
+        }
     }
 
     public static function createProgramme(): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $body = self::input();
         $departmentId = self::positiveId($body['department_id'] ?? null);
         [$name, $code, $description] = self::validateNamedRecord($body, 'programme');
         $award = trim((string) ($body['award'] ?? 'Bachelor of Science'));
         $duration = filter_var($body['duration_years'] ?? 4, FILTER_VALIDATE_INT);
         if ($award === '' || strlen($award) > 80 || $duration === false || $duration < 1 || $duration > 10) {
-            Response::error('Review the programme details.', 422, ['fields' => ['duration_years' => 'Programme duration must be between 1 and 10 years.']]);
+            Response::error('Review the degree programme details.', 422, ['fields' => ['duration_years' => 'Duration must be between 1 and 10 years.']]);
         }
+
         $db = Database::connection();
         $department = $db->prepare('SELECT id FROM departments WHERE id = ? AND is_active IS TRUE');
         $department->execute([$departmentId]);
-        if (!$department->fetchColumn()) Response::error('Choose an active department.', 422, ['fields' => ['department_id' => 'Choose an active department.']]);
+        if (!$department->fetchColumn()) {
+            Response::error('Choose an active department.', 422, ['fields' => ['department_id' => 'Choose an active department.']]);
+        }
+        if (!Auth::canManageDepartment($admin, $departmentId)) {
+            Response::error('You do not have permission to manage degree programmes in this department.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
+
         try {
-            $stmt = $db->prepare('INSERT INTO programmes (department_id, name, code, award, duration_years, description, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id');
+            $stmt = $db->prepare(
+                'INSERT INTO programmes (department_id, name, code, award, duration_years, description, created_by, updated_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id'
+            );
             $stmt->execute([$departmentId, $name, $code, $award, $duration, $description, (int) $admin['id'], (int) $admin['id']]);
             $id = (int) $stmt->fetchColumn();
-            self::audit($db, (int) $admin['id'], 'programme_created', 'programme', $id, 'Created programme ' . $name . '.');
-            Response::json(['message' => 'Programme created.', 'id' => $id], 201);
-        } catch (PDOException $exception) { self::databaseConflict($exception, 'That programme name or code already exists in the selected department.'); }
+            self::audit($db, (int) $admin['id'], 'programme_created', 'programme', $id, 'Created degree programme ' . $name . '.');
+            Response::json(['message' => 'Degree programme created.', 'id' => $id], 201);
+        } catch (PDOException $exception) {
+            self::databaseConflict($exception, 'That degree programme name or code already exists in the selected department.');
+        }
     }
 
     public static function updateProgramme(array $params): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $id = self::positiveId($params['id'] ?? null);
         $body = self::input();
         $db = Database::connection();
-        if (!self::exists($db, 'programmes', $id)) Response::error('The programme could not be found.', 404);
-        $departmentId = self::positiveId($body['department_id'] ?? null);
+
+        $existingStmt = $db->prepare('SELECT department_id FROM programmes WHERE id = ? LIMIT 1');
+        $existingStmt->execute([$id]);
+        $oldDepartmentId = $existingStmt->fetchColumn();
+        if ($oldDepartmentId === false) {
+            Response::error('The degree programme could not be found.', 404);
+        }
+        $oldDepartmentId = (int) $oldDepartmentId;
+        if (!Auth::canManageDepartment($admin, $oldDepartmentId)) {
+            Response::error('You do not have permission to manage this degree programme.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
+
+        $departmentId = self::positiveId($body['department_id'] ?? $oldDepartmentId);
         $department = $db->prepare('SELECT id FROM departments WHERE id = ? AND is_active IS TRUE');
         $department->execute([$departmentId]);
-        if (!$department->fetchColumn()) Response::error('Choose an active department.', 422, ['fields' => ['department_id' => 'Choose an active department.']]);
+        if (!$department->fetchColumn()) {
+            Response::error('Choose an active department.', 422, ['fields' => ['department_id' => 'Choose an active department.']]);
+        }
+        if ($departmentId !== $oldDepartmentId && !Auth::canManageDepartment($admin, $departmentId)) {
+            Response::error('You cannot move this degree programme outside your administrative scope.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
+
         [$name, $code, $description] = self::validateNamedRecord($body, 'programme', true);
         $award = trim((string) ($body['award'] ?? 'Bachelor of Science'));
         $duration = filter_var($body['duration_years'] ?? 4, FILTER_VALIDATE_INT);
-        if ($award === '' || strlen($award) > 80 || $duration === false || $duration < 1 || $duration > 10) Response::error('Review the programme details.', 422);
+        if ($award === '' || strlen($award) > 80 || $duration === false || $duration < 1 || $duration > 10) {
+            Response::error('Review the degree programme details.', 422);
+        }
+
         $active = array_key_exists('is_active', $body) ? self::boolean($body['is_active']) : null;
-        $existingDepartment = $db->prepare('SELECT department_id FROM programmes WHERE id = ?');
-        $existingDepartment->execute([$id]);
-        $oldDepartmentId = (int) $existingDepartment->fetchColumn();
         $offeringCheck = $db->prepare('SELECT COUNT(*) FROM course_offerings WHERE programme_id = ? AND deleted_at IS NULL');
         $offeringCheck->execute([$id]);
         $existingOfferings = (int) $offeringCheck->fetchColumn();
-        if ($active === false && $existingOfferings > 0) Response::error('This programme has course offerings. Archive or move those offerings before archiving the programme.', 409);
-        if ($oldDepartmentId !== $departmentId && $existingOfferings > 0) Response::error("Move or archive this programme's course offerings before changing its department.", 409);
+        if ($active === false && $existingOfferings > 0) {
+            Response::error('This degree programme has course assignments. Archive or move those assignments before archiving it.', 409);
+        }
+        if ($oldDepartmentId !== $departmentId && $existingOfferings > 0) {
+            Response::error("Move or archive this degree programme's course assignments before changing its department.", 409);
+        }
+
         $sql = 'UPDATE programmes SET department_id = ?, name = ?, code = ?, award = ?, duration_years = ?, description = ?, updated_by = ?';
         $values = [$departmentId, $name, $code, $award, $duration, $description, (int) $admin['id']];
-        if ($active !== null) { $sql .= ', is_active = ?'; $values[] = $active; }
-        $sql .= ' WHERE id = ?'; $values[] = $id;
+        if ($active !== null) {
+            $sql .= ', is_active = ?';
+            $values[] = $active;
+        }
+        $sql .= ' WHERE id = ?';
+        $values[] = $id;
+
         try {
-            $stmt = $db->prepare($sql); $stmt->execute($values);
-            self::audit($db, (int) $admin['id'], 'programme_updated', 'programme', $id, 'Updated programme ' . $name . '.');
-            Response::json(['message' => 'Programme updated.']);
-        } catch (PDOException $exception) { self::databaseConflict($exception, 'That programme name or code already exists in the selected department.'); }
+            $stmt = $db->prepare($sql);
+            $stmt->execute($values);
+            self::audit($db, (int) $admin['id'], 'programme_updated', 'programme', $id, 'Updated degree programme ' . $name . '.');
+            Response::json(['message' => 'Degree programme updated.']);
+        } catch (PDOException $exception) {
+            self::databaseConflict($exception, 'That degree programme name or code already exists in the selected department.');
+        }
     }
 
     public static function adminCourses(): void
     {
-        Auth::requireAdmin();
-        $stmt = Database::connection()->query(
-            'SELECT c.id, c.current_code, c.title, c.description, CASE WHEN c.is_active IS TRUE THEN 1 ELSE 0 END AS is_active, CASE WHEN c.is_university_wide IS TRUE THEN 1 ELSE 0 END AS is_university_wide, c.created_at,
-                    d.id AS department_id, d.name AS department_name, f.name AS faculty_name,
-                    COUNT(DISTINCT co.id) FILTER (WHERE co.deleted_at IS NULL) AS offering_count
-             FROM courses c LEFT JOIN departments d ON d.id = c.department_id
+        $admin = Auth::requireAdministrator();
+        $scope = Auth::departmentScopeFilter($admin, 'd.id');
+        $offeringScope = Auth::departmentScopeFilter($admin, 'd_offering.id');
+        $stmt = Database::connection()->prepare(
+            "SELECT c.id, c.current_code, c.title, c.description,
+                    CASE WHEN c.is_active IS TRUE THEN 1 ELSE 0 END AS is_active,
+                    CASE WHEN c.is_university_wide IS TRUE THEN 1 ELSE 0 END AS is_university_wide,
+                    c.created_at, d.id AS department_id, d.name AS department_name,
+                    f.name AS faculty_name,
+                    COUNT(DISTINCT co.id) FILTER (
+                        WHERE co.deleted_at IS NULL AND {$offeringScope['sql']}
+                    ) AS offering_count
+             FROM courses c
+             LEFT JOIN departments d ON d.id = c.department_id
              LEFT JOIN faculties f ON f.id = d.faculty_id
              LEFT JOIN course_offerings co ON co.course_id = c.id
+             LEFT JOIN programmes p_offering ON p_offering.id = co.programme_id
+             LEFT JOIN departments d_offering ON d_offering.id = COALESCE(p_offering.department_id, c.department_id)
              WHERE c.deleted_at IS NULL
+               AND ({$scope['sql']} OR (c.is_university_wide IS TRUE AND c.department_id IS NULL))
              GROUP BY c.id, d.id, d.name, f.name
-             ORDER BY c.current_code'
+             ORDER BY c.current_code"
         );
+        $stmt->execute(array_merge($offeringScope['params'], $scope['params']));
         Response::json(['courses' => $stmt->fetchAll()]);
     }
 
     public static function createCourse(): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $body = self::input();
         $code = self::courseCode($body['current_code'] ?? '');
         $title = trim((string) ($body['title'] ?? ''));
         $description = self::description($body['description'] ?? '');
         $isUniversityWide = self::boolean($body['is_university_wide'] ?? false);
         $departmentId = $isUniversityWide ? null : self::positiveId($body['department_id'] ?? null);
-        if ($code === null) Response::error('Enter a valid course code.', 422, ['fields' => ['current_code' => 'Use 2–20 letters, numbers, spaces, dots or hyphens.']]);
-        if ($title === '' || strlen($title) > 200) Response::error('Enter a course title of no more than 200 characters.', 422, ['fields' => ['title' => 'Enter a valid course title.']]);
-        if (!$isUniversityWide && $departmentId < 1) Response::error('Choose a department or mark this as a university-wide course.', 422, ['fields' => ['department_id' => 'Choose a department.']]);
+
+        if ($code === null) {
+            Response::error('Enter a valid course code.', 422, ['fields' => ['current_code' => 'Use 2–20 letters, numbers, spaces, dots or hyphens.']]);
+        }
+        if ($title === '' || strlen($title) > 200) {
+            Response::error('Enter a course title of no more than 200 characters.', 422, ['fields' => ['title' => 'Enter a valid course title.']]);
+        }
+        if (!$isUniversityWide && $departmentId < 1) {
+            Response::error('Choose a department or mark this as a university-wide course.', 422, ['fields' => ['department_id' => 'Choose a department.']]);
+        }
+
         $db = Database::connection();
-        if ($departmentId !== null) {
+        if ($isUniversityWide) {
+            if (!Auth::canManageScope($admin, 'institution', null)) {
+                Response::error('Only institution administrators can create university-wide courses.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+            }
+        } else {
             $department = $db->prepare('SELECT id FROM departments WHERE id = ? AND is_active IS TRUE');
             $department->execute([$departmentId]);
-            if (!$department->fetchColumn()) Response::error('Choose an active department.', 422, ['fields' => ['department_id' => 'Choose an active department.']]);
+            if (!$department->fetchColumn()) {
+                Response::error('Choose an active department.', 422, ['fields' => ['department_id' => 'Choose an active department.']]);
+            }
+            if (!Auth::canManageDepartment($admin, $departmentId)) {
+                Response::error('You do not have permission to create courses in this department.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+            }
         }
+
         try {
-            $stmt = $db->prepare("INSERT INTO courses (current_code, title, status, department_id, description, is_active, is_university_wide, created_by, updated_by) VALUES (?, ?, 'active', ?, ?, TRUE, ?, ?, ?) RETURNING id");
+            $stmt = $db->prepare(
+                "INSERT INTO courses
+                    (current_code, title, status, department_id, description, is_active, is_university_wide, created_by, updated_by)
+                 VALUES (?, ?, 'active', ?, ?, TRUE, ?, ?, ?) RETURNING id"
+            );
             $stmt->execute([$code, $title, $departmentId, $description, $isUniversityWide, (int) $admin['id'], (int) $admin['id']]);
             $id = (int) $stmt->fetchColumn();
             self::audit($db, (int) $admin['id'], 'course_created', 'course', $id, 'Created course ' . $code . ' — ' . $title . '.');
             Response::json(['message' => 'Course created.', 'id' => $id], 201);
-        } catch (PDOException $exception) { self::databaseConflict($exception, 'That course code is already in use.'); }
+        } catch (PDOException $exception) {
+            self::databaseConflict($exception, 'That course code is already in use.');
+        }
     }
 
     public static function updateCourse(array $params): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $id = self::positiveId($params['id'] ?? null);
         $body = self::input();
         $db = Database::connection();
-        $find = $db->prepare('SELECT id, current_code, department_id, CASE WHEN is_university_wide IS TRUE THEN 1 ELSE 0 END AS is_university_wide, CASE WHEN is_active IS TRUE THEN 1 ELSE 0 END AS is_active FROM courses WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+
+        $find = $db->prepare(
+            'SELECT id, current_code, department_id,
+                    CASE WHEN is_university_wide IS TRUE THEN 1 ELSE 0 END AS is_university_wide,
+                    CASE WHEN is_active IS TRUE THEN 1 ELSE 0 END AS is_active
+             FROM courses WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
         $find->execute([$id]);
         $existing = $find->fetch();
-        if (!$existing) Response::error('The course could not be found.', 404);
+        if (!$existing) {
+            Response::error('The course could not be found.', 404);
+        }
+        if (!Auth::canManageCourse($admin, $id)) {
+            Response::error('You do not have permission to manage this course.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
+
         $code = self::courseCode($body['current_code'] ?? $existing['current_code']);
         $title = trim((string) ($body['title'] ?? ''));
         $description = self::description($body['description'] ?? '');
         $isUniversityWide = self::boolean($body['is_university_wide'] ?? false);
         $departmentId = $isUniversityWide ? null : self::positiveId($body['department_id'] ?? null);
-        if ($code === null || $title === '' || strlen($title) > 200) Response::error('Review the course details.', 422);
-        if (!$isUniversityWide && $departmentId < 1) Response::error('Choose a department or mark this as a university-wide course.', 422);
-        if ($departmentId !== null) {
+
+        if ($code === null || $title === '' || strlen($title) > 200) {
+            Response::error('Review the course details.', 422);
+        }
+        if (!$isUniversityWide && $departmentId < 1) {
+            Response::error('Choose a department or mark this as a university-wide course.', 422);
+        }
+
+        if ($isUniversityWide) {
+            if (!Auth::canManageScope($admin, 'institution', null)) {
+                Response::error('Only institution administrators can manage university-wide courses.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+            }
+        } else {
             $department = $db->prepare('SELECT id FROM departments WHERE id = ? AND is_active IS TRUE');
             $department->execute([$departmentId]);
-            if (!$department->fetchColumn()) Response::error('Choose an active department.', 422, ['fields' => ['department_id' => 'Choose an active department.']]);
+            if (!$department->fetchColumn()) {
+                Response::error('Choose an active department.', 422, ['fields' => ['department_id' => 'Choose an active department.']]);
+            }
+            if (!Auth::canManageDepartment($admin, $departmentId)) {
+                Response::error('You cannot move or assign this course outside your administrative scope.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+            }
         }
-        $active = array_key_exists('is_active', $body) ? self::boolean($body['is_active']) : (int) $existing['is_active'] === 1;
+
+        $active = array_key_exists('is_active', $body)
+            ? self::boolean($body['is_active'])
+            : (int) $existing['is_active'] === 1;
         $oldDepartmentId = $existing['department_id'] === null ? null : (int) $existing['department_id'];
         $oldUniversityWide = (int) $existing['is_university_wide'] === 1;
         $offeringCheck = $db->prepare('SELECT COUNT(*) FROM course_offerings WHERE course_id = ? AND deleted_at IS NULL');
         $offeringCheck->execute([$id]);
         $existingOfferings = (int) $offeringCheck->fetchColumn();
-        if (!$active && $existingOfferings > 0) Response::error('This course has active offerings. Archive its offerings before archiving the course.', 409);
-        if (($oldDepartmentId !== $departmentId || $oldUniversityWide !== $isUniversityWide) && $existingOfferings > 0) Response::error("Archive this course's offerings before changing its academic scope.", 409);
+
+        if (!$active && $existingOfferings > 0) {
+            Response::error('This course has active course assignments. Archive those assignments before archiving the course.', 409);
+        }
+        if (($oldDepartmentId !== $departmentId || $oldUniversityWide !== $isUniversityWide) && $existingOfferings > 0) {
+            Response::error("Archive this course's assignments before changing its academic scope.", 409);
+        }
+
         $db->beginTransaction();
         try {
             if (strcasecmp((string) $existing['current_code'], $code) !== 0) {
-                $db->prepare('INSERT INTO course_code_history (course_id, old_code, active_to_session_id) VALUES (?, ?, (SELECT id FROM academic_sessions WHERE is_current IS TRUE LIMIT 1))')
-                    ->execute([$id, $existing['current_code']]);
+                $db->prepare(
+                    'INSERT INTO course_code_history (course_id, old_code, active_to_session_id)
+                     VALUES (?, ?, (SELECT id FROM academic_sessions WHERE is_current IS TRUE LIMIT 1))'
+                )->execute([$id, $existing['current_code']]);
             }
-            $stmt = $db->prepare('UPDATE courses SET current_code = ?, title = ?, department_id = ?, description = ?, is_active = ?, is_university_wide = ?, updated_by = ? WHERE id = ?');
+
+            $stmt = $db->prepare(
+                'UPDATE courses SET current_code = ?, title = ?, department_id = ?, description = ?,
+                    is_active = ?, is_university_wide = ?, updated_by = ? WHERE id = ?'
+            );
             $stmt->execute([$code, $title, $departmentId, $description, $active, $isUniversityWide, (int) $admin['id'], $id]);
             self::audit($db, (int) $admin['id'], 'course_updated', 'course', $id, 'Updated course ' . $code . '.');
             $db->commit();
             Response::json(['message' => 'Course updated.']);
         } catch (PDOException $exception) {
-            if ($db->inTransaction()) $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             self::databaseConflict($exception, 'That course code is already in use.');
         } catch (Throwable $exception) {
-            if ($db->inTransaction()) $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             throw $exception;
         }
     }
 
     public static function adminOfferings(): void
     {
-        Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
+        $scope = Auth::departmentScopeFilter($admin, 'd.id');
         $db = Database::connection();
-        $stmt = $db->query(
-            'SELECT co.id, co.course_id, co.programme_id, co.level, co.academic_session_id,
+        $stmt = $db->prepare(
+            "SELECT co.id, co.course_id, co.programme_id, co.level, co.academic_session_id,
                     co.semester, co.course_type, co.credit_units, co.exam_date, co.status,
                     c.current_code, c.title AS course_title, p.name AS programme_name,
                     d.name AS department_name, s.name AS session_name, s.ended_at AS session_ended_at
-             FROM course_offerings co JOIN courses c ON c.id = co.course_id
+             FROM course_offerings co
+             JOIN courses c ON c.id = co.course_id
              LEFT JOIN programmes p ON p.id = co.programme_id
              LEFT JOIN departments d ON d.id = COALESCE(p.department_id, c.department_id)
              JOIN academic_sessions s ON s.id = co.academic_session_id
-             WHERE co.deleted_at IS NULL AND c.deleted_at IS NULL
-             ORDER BY s.name DESC, co.level, co.semester, c.current_code'
+             WHERE co.deleted_at IS NULL AND c.deleted_at IS NULL AND {$scope['sql']}
+             ORDER BY s.name DESC, co.level, co.semester, c.current_code"
         );
+        $stmt->execute($scope['params']);
         $offerings = $stmt->fetchAll();
         self::attachLecturers($db, $offerings);
         Response::json(['offerings' => $offerings]);
@@ -407,10 +659,12 @@ final class AcademicController
 
     public static function createOffering(): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $body = self::input();
-        [$values, $lecturers] = self::validateOffering($body);
+        [$values, $lecturers] = self::validateOffering($body, $admin);
+        self::assertProgrammeScope($admin, (int) $values['programme_id']);
         $db = Database::connection();
+
         try {
             $db->beginTransaction();
             $stmt = $db->prepare(
@@ -427,29 +681,45 @@ final class AcademicController
             ]);
             $id = (int) $stmt->fetchColumn();
             self::saveLecturers($db, $id, $lecturers);
-            $db->prepare('INSERT INTO course_offering_history (course_offering_id, changed_by, change_summary) VALUES (?, ?, ?)')->execute([$id, (int) $admin['id'], 'Created course offering.']);
+            $db->prepare(
+                'INSERT INTO course_offering_history (course_offering_id, changed_by, change_summary)
+                 VALUES (?, ?, ?)'
+            )->execute([$id, (int) $admin['id'], 'Created course offering.']);
             self::audit($db, (int) $admin['id'], 'course_offering_created', 'course_offering', $id, 'Created a course offering.');
             $db->commit();
             Response::json(['message' => 'Course offering created.', 'id' => $id], 201);
         } catch (PDOException $exception) {
-            if ($db->inTransaction()) $db->rollBack();
-            self::databaseConflict($exception, 'That course already has an offering for the selected programme, level, session and semester.');
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            self::databaseConflict($exception, 'That course already has an offering for the selected degree programme, level, session and semester.');
         } catch (Throwable $exception) {
-            if ($db->inTransaction()) $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             throw $exception;
         }
     }
 
     public static function updateOffering(array $params): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $id = self::positiveId($params['id'] ?? null);
         $body = self::input();
         $db = Database::connection();
-        $exists = $db->prepare('SELECT id FROM course_offerings WHERE id = ? AND deleted_at IS NULL');
-        $exists->execute([$id]);
-        if (!$exists->fetchColumn()) Response::error('The course offering could not be found.', 404);
-        [$values, $lecturers] = self::validateOffering($body);
+
+        $existing = $db->prepare('SELECT id FROM course_offerings WHERE id = ? AND deleted_at IS NULL');
+        $existing->execute([$id]);
+        if (!$existing->fetchColumn()) {
+            Response::error('The course assignment could not be found.', 404);
+        }
+        if (!Auth::canManageOffering($admin, $id)) {
+            Response::error('You do not have permission to manage this course assignment.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
+
+        [$values, $lecturers] = self::validateOffering($body, $admin, $id);
+        self::assertProgrammeScope($admin, (int) $values['programme_id']);
+
         try {
             $db->beginTransaction();
             $stmt = $db->prepare(
@@ -464,41 +734,66 @@ final class AcademicController
             ]);
             $db->prepare('DELETE FROM course_offering_lecturers WHERE course_offering_id = ?')->execute([$id]);
             self::saveLecturers($db, $id, $lecturers);
-            $db->prepare('INSERT INTO course_offering_history (course_offering_id, changed_by, change_summary) VALUES (?, ?, ?)')->execute([$id, (int) $admin['id'], 'Updated course offering and lecturer assignments.']);
+            $db->prepare(
+                'INSERT INTO course_offering_history (course_offering_id, changed_by, change_summary)
+                 VALUES (?, ?, ?)'
+            )->execute([$id, (int) $admin['id'], 'Updated course offering and lecturer assignments.']);
             self::audit($db, (int) $admin['id'], 'course_offering_updated', 'course_offering', $id, 'Updated a course offering.');
             $db->commit();
-            Response::json(['message' => 'Course offering updated.']);
+            Response::json(['message' => 'Course assignment updated.']);
         } catch (PDOException $exception) {
-            if ($db->inTransaction()) $db->rollBack();
-            self::databaseConflict($exception, 'That course already has an offering for the selected programme, level, session and semester.');
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            self::databaseConflict($exception, 'That course already has an offering for the selected degree programme, level, session and semester.');
         } catch (Throwable $exception) {
-            if ($db->inTransaction()) $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             throw $exception;
         }
     }
 
     public static function archiveOffering(array $params): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $id = self::positiveId($params['id'] ?? null);
+        if (!Auth::canManageOffering($admin, $id)) {
+            Response::error('You do not have permission to archive this course assignment.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
+
         $db = Database::connection();
-        $stmt = $db->prepare('UPDATE course_offerings SET deleted_at = CURRENT_TIMESTAMP, updated_by = ? WHERE id = ? AND deleted_at IS NULL');
+        $stmt = $db->prepare(
+            'UPDATE course_offerings SET deleted_at = CURRENT_TIMESTAMP, updated_by = ?
+             WHERE id = ? AND deleted_at IS NULL'
+        );
         $stmt->execute([(int) $admin['id'], $id]);
-        if ($stmt->rowCount() !== 1) Response::error('The course offering could not be found.', 404);
-        $db->prepare('INSERT INTO course_offering_history (course_offering_id, changed_by, change_summary) VALUES (?, ?, ?)')->execute([$id, (int) $admin['id'], 'Archived course offering.']);
+        if ($stmt->rowCount() !== 1) {
+            Response::error('The course assignment could not be found.', 404);
+        }
+        $db->prepare(
+            'INSERT INTO course_offering_history (course_offering_id, changed_by, change_summary)
+             VALUES (?, ?, ?)'
+        )->execute([$id, (int) $admin['id'], 'Archived course offering.']);
         self::audit($db, (int) $admin['id'], 'course_offering_archived', 'course_offering', $id, 'Archived a course offering.');
-        Response::json(['message' => 'Course offering archived.']);
+        Response::json(['message' => 'Course assignment archived.']);
     }
 
     public static function staff(): void
     {
-        Auth::requireAdmin();
-        $stmt = Database::connection()->query(
-            "SELECT id, first_name, middle_name, surname, staff_no, email
-             FROM users WHERE account_type = 'staff' AND is_verified IS TRUE
-               AND status = 'active' AND deleted_at IS NULL
-             ORDER BY surname, first_name"
+        $admin = Auth::requireAdministrator();
+        $scope = Auth::departmentScopeFilter($admin, 'u.department_id');
+        $stmt = Database::connection()->prepare(
+            "SELECT u.id, u.first_name, u.middle_name, u.surname, u.staff_no, u.email,
+                    u.department_id, d.name AS department_name
+             FROM users u
+             LEFT JOIN departments d ON d.id = u.department_id
+             WHERE u.account_type = 'staff' AND u.is_verified IS TRUE
+               AND u.status = 'active' AND u.deleted_at IS NULL
+               AND {$scope['sql']}
+             ORDER BY u.surname, u.first_name"
         );
+        $stmt->execute($scope['params']);
         Response::json(['staff' => $stmt->fetchAll()]);
     }
 
@@ -579,7 +874,26 @@ final class AcademicController
         Response::json(['course' => $course, 'offerings' => $offerings]);
     }
 
-    private static function validateOffering(array $body): array
+    private static function assertProgrammeScope(array $admin, int $programmeId): int
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT department_id FROM programmes WHERE id = ? AND is_active IS TRUE LIMIT 1'
+        );
+        $stmt->execute([$programmeId]);
+        $departmentId = $stmt->fetchColumn();
+        if ($departmentId === false) {
+            Response::error('Choose an active degree programme.', 422);
+        }
+
+        $departmentId = (int) $departmentId;
+        if (!Auth::canManageDepartment($admin, $departmentId)) {
+            Response::error('You do not have permission to manage course assignments for this degree programme.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
+
+        return $departmentId;
+    }
+
+    private static function validateOffering(array $body, array $admin, ?int $existingOfferingId = null): array
     {
         $courseId = self::positiveId($body['course_id'] ?? null);
         $programmeId = self::positiveId($body['programme_id'] ?? null);
@@ -621,10 +935,31 @@ final class AcademicController
             $userId = isset($lecturer['user_id']) && ctype_digit((string) $lecturer['user_id']) ? (int) $lecturer['user_id'] : null;
             $name = trim((string) ($lecturer['name'] ?? ''));
             if ($userId !== null) {
-                $staff = $db->prepare("SELECT id, first_name, middle_name, surname FROM users WHERE id = ? AND account_type = 'staff' AND is_verified IS TRUE AND status = 'active' AND deleted_at IS NULL");
+                $staff = $db->prepare(
+                    "SELECT id, first_name, middle_name, surname, department_id
+                     FROM users
+                     WHERE id = ? AND account_type = 'staff' AND is_verified IS TRUE
+                       AND status = 'active' AND deleted_at IS NULL"
+                );
                 $staff->execute([$userId]);
                 $person = $staff->fetch();
-                if (!$person) Response::error('One of the selected lecturer accounts is unavailable.', 422);
+                if (!$person) {
+                    Response::error('One of the selected lecturer accounts is unavailable.', 422);
+                }
+                $lecturerIsInScope = $person['department_id'] === null
+                    ? Auth::hasInstitutionScope($admin)
+                    : Auth::canManageDepartment($admin, (int) $person['department_id']);
+                if (!$lecturerIsInScope && $existingOfferingId !== null) {
+                    $existingLecturer = $db->prepare(
+                        'SELECT id FROM course_offering_lecturers
+                         WHERE course_offering_id = ? AND lecturer_user_id = ? LIMIT 1'
+                    );
+                    $existingLecturer->execute([$existingOfferingId, $userId]);
+                    $lecturerIsInScope = (bool) $existingLecturer->fetchColumn();
+                }
+                if (!$lecturerIsInScope) {
+                    Response::error('Choose a lecturer within your administrative scope.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+                }
                 $name = trim(implode(' ', array_filter([$person['first_name'], $person['middle_name'], $person['surname']])));
             }
             if ($name === '' || strlen($name) > 160) continue;

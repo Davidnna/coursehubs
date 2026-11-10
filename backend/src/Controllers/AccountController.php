@@ -232,8 +232,12 @@ final class AccountController
         $stmt->execute([(int) $sessionUser['id']]);
         $user = $stmt->fetch();
         if (!$user) Response::error('Your account could not be found.', 404);
-        if (filter_var($user['is_super_admin'], FILTER_VALIDATE_BOOLEAN)) {
-            Response::error('A super administrator account cannot be deleted from its own session. Contact another authorised administrator.', 403);
+        $hasSuperAdminScope = array_filter(
+            Auth::scopesFor((int) $user['id']),
+            static fn (array $scope): bool => $scope['role'] === 'super_admin'
+        ) !== [];
+        if (filter_var($user['is_super_admin'], FILTER_VALIDATE_BOOLEAN) || $hasSuperAdminScope) {
+            Response::error('An account with Super Administrator responsibilities cannot be deleted from its own session. Ask another authorised administrator to update those appointments first.', 403);
         }
         if (!password_verify((string) ($body['current_password'] ?? ''), (string) $user['password_hash'])) {
             Response::error('Your current password is incorrect.', 403, ['code' => 'CURRENT_PASSWORD_INVALID']);

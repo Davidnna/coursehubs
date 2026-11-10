@@ -9,34 +9,53 @@ final class StaffManagementController
 
     public static function index(): void
     {
-        Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $db = Database::connection();
+        $staffScope = Auth::departmentScopeFilter($admin, 'u.department_id');
+        $historyScope = Auth::departmentScopeFilter($admin, 'assigned.department_id');
+        $departmentScope = Auth::departmentScopeFilter($admin, 'd.id');
+        $offeringScope = Auth::departmentScopeFilter($admin, 'COALESCE(p.department_id, c.department_id)');
+        $lecturerCountScope = Auth::departmentScopeFilter($admin, 'COALESCE(p_count.department_id, c_count.department_id)');
+        $adviserCountScope = Auth::departmentScopeFilter($admin, 'p_adviser.department_id');
 
-        $staff = $db->query(
+        $staffStmt = $db->prepare(
             "SELECT u.id, u.first_name, u.middle_name, u.surname, u.staff_no, u.email,
                     u.department_id, d.name AS department_name,
                     (SELECT COUNT(*) FROM course_offering_lecturers col
                      JOIN course_offerings co ON co.id = col.course_offering_id
-                     WHERE col.lecturer_user_id = u.id AND co.deleted_at IS NULL) AS lecturer_course_count,
+                     JOIN courses c_count ON c_count.id = co.course_id
+                     LEFT JOIN programmes p_count ON p_count.id = co.programme_id
+                     WHERE col.lecturer_user_id = u.id AND co.deleted_at IS NULL
+                       AND {$lecturerCountScope['sql']}) AS lecturer_course_count,
                     (SELECT COUNT(*) FROM level_advisers la
-                     WHERE la.user_id = u.id AND la.status = 'active') AS active_adviser_count
+                     LEFT JOIN programmes p_adviser ON p_adviser.id = la.programme_id
+                     WHERE la.user_id = u.id AND la.status = 'active'
+                       AND {$adviserCountScope['sql']}) AS active_adviser_count
              FROM users u
              LEFT JOIN departments d ON d.id = u.department_id
              WHERE u.account_type = 'staff' AND u.is_verified IS TRUE
                AND u.status = 'active' AND u.deleted_at IS NULL
+               AND {$staffScope['sql']}
              ORDER BY u.surname, u.first_name
              LIMIT 500"
-        )->fetchAll();
+        );
+        $staffStmt->execute(array_merge(
+            $lecturerCountScope['params'],
+            $adviserCountScope['params'],
+            $staffScope['params']
+        ));
 
-        $programmes = $db->query(
+        $programmeStmt = $db->prepare(
             "SELECT p.id, p.name, p.code, p.department_id, d.name AS department_name,
                     f.name AS faculty_name
              FROM programmes p
              JOIN departments d ON d.id = p.department_id
              JOIN faculties f ON f.id = d.faculty_id
              WHERE p.is_active IS TRUE AND d.is_active IS TRUE AND f.is_active IS TRUE
+               AND {$departmentScope['sql']}
              ORDER BY f.name, d.name, p.name"
-        )->fetchAll();
+        );
+        $programmeStmt->execute($departmentScope['params']);
 
         $sessions = $db->query(
             "SELECT id, name, CASE WHEN is_current IS TRUE THEN 1 ELSE 0 END AS is_current,
@@ -45,7 +64,7 @@ final class StaffManagementController
              ORDER BY is_current DESC, name DESC"
         )->fetchAll();
 
-        $offerings = $db->query(
+        $offeringStmt = $db->prepare(
             "SELECT co.id, co.course_id, co.programme_id, co.level, co.semester,
                     co.academic_session_id, co.course_type, c.current_code AS course_code,
                     c.title AS course_title, p.name AS programme_name,
@@ -56,12 +75,13 @@ final class StaffManagementController
              JOIN academic_sessions s ON s.id = co.academic_session_id
              WHERE co.deleted_at IS NULL AND c.deleted_at IS NULL
                AND c.is_active IS TRUE AND c.status = 'active'
-               AND s.ended_at IS NULL
+               AND s.ended_at IS NULL AND {$offeringScope['sql']}
              ORDER BY s.is_current DESC, s.name DESC, p.name, co.level, co.semester, c.current_code
              LIMIT 1000"
-        )->fetchAll();
+        );
+        $offeringStmt->execute($offeringScope['params']);
 
-        $lecturerAssignments = $db->query(
+        $lecturerStmt = $db->prepare(
             "SELECT col.id AS assignment_id, col.course_offering_id, col.lecturer_user_id,
                     col.lecturer_name, u.staff_no, u.email,
                     co.level, co.semester, s.name AS session_name,
@@ -73,12 +93,13 @@ final class StaffManagementController
              JOIN academic_sessions s ON s.id = co.academic_session_id
              LEFT JOIN programmes p ON p.id = co.programme_id
              LEFT JOIN users u ON u.id = col.lecturer_user_id
-             WHERE col.lecturer_user_id IS NOT NULL
+             WHERE col.lecturer_user_id IS NOT NULL AND {$offeringScope['sql']}
              ORDER BY s.name DESC, p.name, co.level, c.current_code, col.lecturer_name
              LIMIT 1500"
-        )->fetchAll();
+        );
+        $lecturerStmt->execute($offeringScope['params']);
 
-        $representatives = $db->query(
+        $representativeStmt = $db->prepare(
             "SELECT lr.id AS assignment_id, lr.user_id, lr.rep_type, lr.academic_session_id,
                     lr.status, lr.created_at,
                     u.first_name, u.middle_name, u.surname, u.reg_no, u.email, u.level,
@@ -89,12 +110,14 @@ final class StaffManagementController
              LEFT JOIN programmes p ON p.id = u.programme_id
              LEFT JOIN departments d ON d.id = u.department_id
              JOIN academic_sessions s ON s.id = lr.academic_session_id
+             WHERE {$staffScope['sql']}
              ORDER BY CASE lr.status WHEN 'active' THEN 0 ELSE 1 END,
                       p.name, u.level, lr.rep_type, lr.created_at DESC
              LIMIT 500"
-        )->fetchAll();
+        );
+        $representativeStmt->execute($staffScope['params']);
 
-        $advisers = $db->query(
+        $adviserStmt = $db->prepare(
             "SELECT la.id AS assignment_id, la.user_id, la.programme_id,
                     la.current_level, la.academic_session_id,
                     la.expected_graduation_session_id, la.status, la.created_at,
@@ -107,43 +130,48 @@ final class StaffManagementController
              LEFT JOIN departments d ON d.id = p.department_id
              JOIN academic_sessions s ON s.id = la.academic_session_id
              JOIN academic_sessions gs ON gs.id = la.expected_graduation_session_id
-             ORDER BY CASE la.status WHEN 'active' THEN 0 ELSE 1 END,
+             WHERE {$departmentScope['sql']}
+             ORDER BY CASE WHEN la.status = 'active' THEN 0 ELSE 1 END,
                       p.name, la.current_level, u.surname, u.first_name
              LIMIT 500"
-        )->fetchAll();
+        );
+        $adviserStmt->execute($departmentScope['params']);
 
-        $history = $db->query(
+        $historyStmt = $db->prepare(
             "SELECT h.id, h.assignment_type, h.assignment_id, h.action, h.details, h.created_at,
                     CONCAT(assigned.first_name, ' ', assigned.surname) AS assigned_name,
                     CONCAT(actor.first_name, ' ', actor.surname) AS changed_by_name
              FROM academic_staff_assignment_history h
              JOIN users assigned ON assigned.id = h.assigned_user_id
              JOIN users actor ON actor.id = h.changed_by
+             WHERE {$historyScope['sql']}
              ORDER BY h.created_at DESC, h.id DESC
              LIMIT 250"
-        )->fetchAll();
+        );
+        $historyStmt->execute($historyScope['params']);
 
         Response::json([
-            'staff' => $staff,
-            'programmes' => $programmes,
+            'staff' => $staffStmt->fetchAll(),
+            'programmes' => $programmeStmt->fetchAll(),
             'sessions' => $sessions,
-            'offerings' => $offerings,
-            'lecturer_assignments' => $lecturerAssignments,
-            'representatives' => $representatives,
-            'advisers' => $advisers,
-            'history' => $history,
+            'offerings' => $offeringStmt->fetchAll(),
+            'lecturer_assignments' => $lecturerStmt->fetchAll(),
+            'representatives' => $representativeStmt->fetchAll(),
+            'advisers' => $adviserStmt->fetchAll(),
+            'history' => $historyStmt->fetchAll(),
         ]);
     }
 
     public static function searchStudents(): void
     {
-        Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $query = trim((string) ($_GET['q'] ?? ''));
         if (self::length($query) < 2) {
             Response::json(['students' => []]);
         }
 
         $term = '%' . (function_exists('mb_substr') ? mb_substr($query, 0, 80, 'UTF-8') : substr($query, 0, 80)) . '%';
+        $scope = Auth::departmentScopeFilter($admin, 'u.department_id');
         $stmt = Database::connection()->prepare(
             "SELECT u.id, u.first_name, u.middle_name, u.surname, u.reg_no,
                     u.email, u.level, u.programme_id, p.name AS programme_name,
@@ -154,20 +182,20 @@ final class StaffManagementController
              WHERE u.account_type = 'student' AND u.is_verified IS TRUE
                AND u.status = 'active' AND u.deleted_at IS NULL
                AND u.programme_id IS NOT NULL AND u.department_id IS NOT NULL
-               AND u.level IS NOT NULL
+               AND u.level IS NOT NULL AND {$scope['sql']}
                AND (u.first_name ILIKE ? OR u.surname ILIKE ?
                     OR COALESCE(u.middle_name, '') ILIKE ?
                     OR u.reg_no ILIKE ? OR u.email ILIKE ?)
              ORDER BY u.surname, u.first_name
              LIMIT 40"
         );
-        $stmt->execute([$term, $term, $term, $term, $term]);
+        $stmt->execute(array_merge($scope['params'], [$term, $term, $term, $term, $term]));
         Response::json(['students' => $stmt->fetchAll()]);
     }
 
     public static function assignLecturer(): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $body = self::body();
         $offeringId = self::id($body['course_offering_id'] ?? null);
         $staffId = self::id($body['staff_user_id'] ?? null);
@@ -178,9 +206,11 @@ final class StaffManagementController
         $db = Database::connection();
         $staff = self::activeStaff($db, $staffId);
         $offering = $db->prepare(
-            "SELECT co.id, co.course_id, c.current_code, s.name AS session_name
+            "SELECT co.id, co.course_id, c.current_code, s.name AS session_name,
+                    COALESCE(p.department_id, c.department_id) AS department_id
              FROM course_offerings co
              JOIN courses c ON c.id = co.course_id
+             LEFT JOIN programmes p ON p.id = co.programme_id
              JOIN academic_sessions s ON s.id = co.academic_session_id
              WHERE co.id = ? AND co.deleted_at IS NULL
                AND c.deleted_at IS NULL AND c.is_active IS TRUE
@@ -188,7 +218,17 @@ final class StaffManagementController
         );
         $offering->execute([$offeringId]);
         $course = $offering->fetch();
-        if (!$course) Response::error('The selected course assignment is unavailable.', 404);
+        if (!$course) {
+            Response::error('The selected course assignment is unavailable.', 404);
+        }
+        if (!Auth::canManageOffering($admin, $offeringId)) {
+            Response::error('You do not have permission to manage lecturers for this course assignment.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
+        if ($staff['department_id'] === null
+            ? !Auth::hasInstitutionScope($admin)
+            : !Auth::canManageDepartment($admin, (int) $staff['department_id'])) {
+            Response::error('You can only assign staff members within your administrative scope.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
 
         $duplicate = $db->prepare(
             'SELECT id FROM course_offering_lecturers
@@ -203,23 +243,25 @@ final class StaffManagementController
         try {
             $db->beginTransaction();
             $db->prepare('SELECT pg_advisory_xact_lock(hashtext(?))')->execute(['coursehub_lecturer:' . $offeringId . ':' . $staffId]);
-            $duplicate = $db->prepare('SELECT id FROM course_offering_lecturers WHERE course_offering_id = ? AND lecturer_user_id = ? LIMIT 1');
+            $duplicate = $db->prepare(
+                'SELECT id FROM course_offering_lecturers
+                 WHERE course_offering_id = ? AND lecturer_user_id = ? LIMIT 1'
+            );
             $duplicate->execute([$offeringId, $staffId]);
             if ($duplicate->fetchColumn()) {
                 $db->rollBack();
                 Response::error('This lecturer is already assigned to the selected course.', 409);
             }
+
             $insert = $db->prepare(
-                'INSERT INTO course_offering_lecturers
-                    (course_offering_id, lecturer_name, lecturer_user_id)
+                'INSERT INTO course_offering_lecturers (course_offering_id, lecturer_name, lecturer_user_id)
                  VALUES (?, ?, ?) RETURNING id'
             );
             $insert->execute([$offeringId, $fullName, $staffId]);
             $assignmentId = (int) $insert->fetchColumn();
 
             $db->prepare(
-                'INSERT INTO course_offering_history
-                    (course_offering_id, changed_by, change_summary)
+                'INSERT INTO course_offering_history (course_offering_id, changed_by, change_summary)
                  VALUES (?, ?, ?)'
             )->execute([$offeringId, (int) $admin['id'], 'Assigned lecturer ' . $fullName . '.']);
 
@@ -232,31 +274,44 @@ final class StaffManagementController
             $db->commit();
             Response::json(['message' => 'Lecturer assigned to the course.', 'assignment_id' => $assignmentId], 201);
         } catch (PDOException $exception) {
-            if ($db->inTransaction()) $db->rollBack();
-            if ($exception->getCode() === '23505') Response::error('This lecturer is already assigned to the selected course.', 409);
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            if ($exception->getCode() === '23505') {
+                Response::error('This lecturer is already assigned to the selected course.', 409);
+            }
             throw $exception;
         } catch (Throwable $exception) {
-            if ($db->inTransaction()) $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             throw $exception;
         }
     }
 
     public static function revokeLecturer(array $params): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $assignmentId = self::id($params['id'] ?? null);
         $db = Database::connection();
         $lookup = $db->prepare(
             "SELECT col.id, col.course_offering_id, col.lecturer_user_id,
-                    col.lecturer_name, co.course_id, c.current_code
+                    col.lecturer_name, co.course_id, c.current_code,
+                    COALESCE(p.department_id, c.department_id) AS department_id
              FROM course_offering_lecturers col
              JOIN course_offerings co ON co.id = col.course_offering_id
              JOIN courses c ON c.id = co.course_id
+             LEFT JOIN programmes p ON p.id = co.programme_id
              WHERE col.id = ? AND col.lecturer_user_id IS NOT NULL"
         );
         $lookup->execute([$assignmentId]);
         $assignment = $lookup->fetch();
-        if (!$assignment) Response::error('The lecturer assignment could not be found.', 404);
+        if (!$assignment) {
+            Response::error('The lecturer assignment could not be found.', 404);
+        }
+        if (!Auth::canManageOffering($admin, (int) $assignment['course_offering_id'])) {
+            Response::error('You do not have permission to change this lecturer assignment.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
 
         $db->beginTransaction();
         try {
@@ -273,14 +328,16 @@ final class StaffManagementController
             $db->commit();
             Response::json(['message' => 'Lecturer removed from the course.']);
         } catch (Throwable $exception) {
-            if ($db->inTransaction()) $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             throw $exception;
         }
     }
 
     public static function assignRepresentative(): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $body = self::body();
         $studentId = self::id($body['student_user_id'] ?? null);
         $repType = trim((string) ($body['rep_type'] ?? ''));
@@ -304,6 +361,9 @@ final class StaffManagementController
         $student = $studentStmt->fetch();
         if (!$student || !in_array((int) $student['level'], self::LEVELS, true)) {
             Response::error('Choose an active student with a verified degree programme and academic level.', 422);
+        }
+        if (!Auth::canManageDepartment($admin, (int) $student['department_id'])) {
+            Response::error('You do not have permission to manage representatives in this department.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
         }
 
         $session = self::activeSession($db, $sessionId);
@@ -335,8 +395,8 @@ final class StaffManagementController
             }
 
             $insert = $db->prepare(
-                'INSERT INTO level_reps (user_id, rep_type, academic_session_id, status)
-                 VALUES (?, ?, ?, \'active\') RETURNING id'
+                "INSERT INTO level_reps (user_id, rep_type, academic_session_id, status)
+                 VALUES (?, ?, ?, 'active') RETURNING id"
             );
             $insert->execute([$studentId, $repType, $sessionId]);
             $assignmentId = (int) $insert->fetchColumn();
@@ -351,33 +411,49 @@ final class StaffManagementController
             $db->commit();
             Response::json(['message' => 'Course representative assigned.', 'assignment_id' => $assignmentId], 201);
         } catch (PDOException $exception) {
-            if ($db->inTransaction()) $db->rollBack();
-            if ($exception->getCode() === '23505') Response::error('This student already has an active representative assignment.', 409);
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            if ($exception->getCode() === '23505') {
+                Response::error('This student already has an active representative assignment.', 409);
+            }
             throw $exception;
         } catch (Throwable $exception) {
-            if ($db->inTransaction()) $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             throw $exception;
         }
     }
 
     public static function revokeRepresentative(array $params): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $assignmentId = self::id($params['id'] ?? null);
         $db = Database::connection();
         $lookup = $db->prepare(
             "SELECT lr.id, lr.user_id, lr.rep_type, u.first_name, u.surname,
-                    u.programme_id, u.level
-             FROM level_reps lr JOIN users u ON u.id = lr.user_id
+                    u.programme_id, u.level, u.department_id
+             FROM level_reps lr
+             JOIN users u ON u.id = lr.user_id
              WHERE lr.id = ? AND lr.status = 'active'"
         );
         $lookup->execute([$assignmentId]);
         $assignment = $lookup->fetch();
-        if (!$assignment) Response::error('The representative assignment could not be found.', 404);
+        if (!$assignment) {
+            Response::error('The representative assignment could not be found.', 404);
+        }
+        if ($assignment['department_id'] === null
+            ? !Auth::hasInstitutionScope($admin)
+            : !Auth::canManageDepartment($admin, (int) $assignment['department_id'])) {
+            Response::error('You do not have permission to revoke this representative assignment.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
 
         $db->beginTransaction();
         try {
-            $db->prepare("UPDATE level_reps SET status = 'revoked', updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute([$assignmentId]);
+            $db->prepare(
+                "UPDATE level_reps SET status = 'revoked', updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+            )->execute([$assignmentId]);
             self::history($db, 'course_rep', $assignmentId, (int) $assignment['user_id'], 'revoked', (int) $admin['id'], [
                 'rep_type' => $assignment['rep_type'],
                 'programme_id' => (int) $assignment['programme_id'],
@@ -387,14 +463,16 @@ final class StaffManagementController
             $db->commit();
             Response::json(['message' => 'Course representative assignment revoked.']);
         } catch (Throwable $exception) {
-            if ($db->inTransaction()) $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             throw $exception;
         }
     }
 
     public static function assignAdviser(): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $body = self::body();
         $staffId = self::id($body['staff_user_id'] ?? null);
         $programmeId = self::id($body['programme_id'] ?? null);
@@ -408,21 +486,39 @@ final class StaffManagementController
         $db = Database::connection();
         $staff = self::activeStaff($db, $staffId);
         $programmeStmt = $db->prepare(
-            "SELECT p.id, p.name FROM programmes p
+            "SELECT p.id, p.name, p.department_id
+             FROM programmes p
              JOIN departments d ON d.id = p.department_id
              WHERE p.id = ? AND p.is_active IS TRUE AND d.is_active IS TRUE"
         );
         $programmeStmt->execute([$programmeId]);
         $programme = $programmeStmt->fetch();
-        if (!$programme) Response::error('Choose an active degree programme.', 422);
+        if (!$programme) {
+            Response::error('Choose an active degree programme.', 422);
+        }
+        if (!Auth::canManageDepartment($admin, (int) $programme['department_id'])) {
+            Response::error('You do not have permission to manage advisers for this degree programme.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
+        if ($staff['department_id'] === null
+            ? !Auth::hasInstitutionScope($admin)
+            : !Auth::canManageDepartment($admin, (int) $staff['department_id'])) {
+            Response::error('You can only assign staff advisers within your administrative scope.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
 
         $session = self::activeSession($db, $sessionId);
         $graduationSession = $db->prepare('SELECT id, name FROM academic_sessions WHERE id = ?');
         $graduationSession->execute([$graduationSessionId]);
         $graduation = $graduationSession->fetch();
-        if (!$graduation) Response::error('Choose a valid expected graduation session.', 422);
-        $assignmentStartYear = preg_match('/^(\\d{4})\\/\\d{4}$/', (string) $session['name'], $sessionMatch) ? (int) $sessionMatch[1] : null;
-        $graduationStartYear = preg_match('/^(\\d{4})\\/\\d{4}$/', (string) $graduation['name'], $graduationMatch) ? (int) $graduationMatch[1] : null;
+        if (!$graduation) {
+            Response::error('Choose a valid expected graduation session.', 422);
+        }
+
+        $assignmentStartYear = preg_match('/^(\d{4})\/\d{4}$/', (string) $session['name'], $sessionMatch)
+            ? (int) $sessionMatch[1]
+            : null;
+        $graduationStartYear = preg_match('/^(\d{4})\/\d{4}$/', (string) $graduation['name'], $graduationMatch)
+            ? (int) $graduationMatch[1]
+            : null;
         if ($assignmentStartYear !== null && $graduationStartYear !== null && $graduationStartYear < $assignmentStartYear) {
             Response::error('The expected graduation session cannot be earlier than the adviser assignment session.', 422);
         }
@@ -461,23 +557,30 @@ final class StaffManagementController
             $db->commit();
             Response::json(['message' => 'Course adviser assigned.', 'assignment_id' => $assignmentId], 201);
         } catch (PDOException $exception) {
-            if ($db->inTransaction()) $db->rollBack();
-            if ($exception->getCode() === '23505') Response::error('This staff member already advises that cohort.', 409);
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            if ($exception->getCode() === '23505') {
+                Response::error('This staff member already advises that cohort.', 409);
+            }
             throw $exception;
         } catch (Throwable $exception) {
-            if ($db->inTransaction()) $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             throw $exception;
         }
     }
 
     public static function revokeAdviser(array $params): void
     {
-        $admin = Auth::requireAdmin();
+        $admin = Auth::requireAdministrator();
         $assignmentId = self::id($params['id'] ?? null);
         $db = Database::connection();
         $lookup = $db->prepare(
             "SELECT la.id, la.user_id, la.programme_id, la.current_level,
-                    u.first_name, u.surname, p.name AS programme_name
+                    u.first_name, u.surname, p.name AS programme_name,
+                    p.department_id
              FROM level_advisers la
              JOIN users u ON u.id = la.user_id
              LEFT JOIN programmes p ON p.id = la.programme_id
@@ -485,11 +588,20 @@ final class StaffManagementController
         );
         $lookup->execute([$assignmentId]);
         $assignment = $lookup->fetch();
-        if (!$assignment) Response::error('The course adviser assignment could not be found.', 404);
+        if (!$assignment) {
+            Response::error('The course adviser assignment could not be found.', 404);
+        }
+        if ($assignment['department_id'] === null
+            ? !Auth::hasInstitutionScope($admin)
+            : !Auth::canManageDepartment($admin, (int) $assignment['department_id'])) {
+            Response::error('You do not have permission to revoke this adviser assignment.', 403, ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']);
+        }
 
         $db->beginTransaction();
         try {
-            $db->prepare("UPDATE level_advisers SET status = 'revoked', updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute([$assignmentId]);
+            $db->prepare(
+                "UPDATE level_advisers SET status = 'revoked', updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+            )->execute([$assignmentId]);
             self::history($db, 'course_adviser', $assignmentId, (int) $assignment['user_id'], 'revoked', (int) $admin['id'], [
                 'programme_id' => $assignment['programme_id'],
                 'programme' => $assignment['programme_name'],
@@ -499,7 +611,9 @@ final class StaffManagementController
             $db->commit();
             Response::json(['message' => 'Course adviser assignment revoked.']);
         } catch (Throwable $exception) {
-            if ($db->inTransaction()) $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             throw $exception;
         }
     }
@@ -507,7 +621,7 @@ final class StaffManagementController
     private static function activeStaff(PDO $db, int $staffId): array
     {
         $stmt = $db->prepare(
-            "SELECT id, first_name, middle_name, surname, staff_no, email
+            "SELECT id, first_name, middle_name, surname, staff_no, email, department_id
              FROM users
              WHERE id = ? AND account_type = 'staff'
                AND is_verified IS TRUE AND status = 'active' AND deleted_at IS NULL

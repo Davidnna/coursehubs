@@ -184,6 +184,9 @@ def download_object(client, bucket: str, key: str, destination: Path) -> dict[st
     response = client.get_object(Bucket=bucket, Key=key)
     destination.parent.mkdir(parents=True, exist_ok=True)
 
+    digest = hashlib.sha256()
+    bytes_written = 0
+
     try:
         with destination.open("wb") as output:
             body = response["Body"]
@@ -192,12 +195,20 @@ def download_object(client, bucket: str, key: str, destination: Path) -> dict[st
                 if not chunk:
                     break
                 output.write(chunk)
+                digest.update(chunk)
+                bytes_written += len(chunk)
     finally:
         response["Body"].close()
+
+    expected_size = int(response.get("ContentLength", bytes_written))
+    if bytes_written != expected_size:
+        destination.unlink(missing_ok=True)
+        raise BackupError(f"Resource object download was incomplete: {key}")
 
     metadata: dict[str, Any] = {
         "content_type": response.get("ContentType", "application/octet-stream"),
         "metadata": response.get("Metadata", {}),
+        "content_sha256": digest.hexdigest(),
     }
     for source_field, manifest_field in (
         ("CacheControl", "cache_control"),

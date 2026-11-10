@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Small, dependency-light tests for incremental resource snapshot planning."""
 
+import hashlib
 import importlib.util
+import io
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -13,6 +16,23 @@ assert SPEC.loader is not None
 SPEC.loader.exec_module(MODULE)
 
 
+class FakeObjectBody(io.BytesIO):
+    pass
+
+
+class FakeS3Client:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def get_object(self, Bucket, Key):
+        return {
+            "Body": FakeObjectBody(self.payload),
+            "ContentLength": len(self.payload),
+            "ContentType": "application/pdf",
+            "Metadata": {"source": "test"},
+        }
+
+
 class ResourceChangePlanningTests(unittest.TestCase):
     def setUp(self):
         self.previous = {
@@ -22,6 +42,7 @@ class ResourceChangePlanningTests(unittest.TestCase):
                 "last_modified": "2026-11-09T10:00:00+00:00",
                 "blob": "hash-a",
                 "content_type": "application/pdf",
+                "content_sha256": "sha256-unchanged",
             },
             "notes/changed.pdf": {
                 "etag": "bbb",
@@ -68,6 +89,7 @@ class ResourceChangePlanningTests(unittest.TestCase):
         self.assertEqual(changed, ["notes/changed.pdf", "notes/new.pdf"])
         self.assertEqual(deleted, ["notes/deleted.pdf"])
         self.assertEqual(manifest["notes/unchanged.pdf"]["content_type"], "application/pdf")
+        self.assertEqual(manifest["notes/unchanged.pdf"]["content_sha256"], "sha256-unchanged")
         self.assertEqual(manifest["notes/changed.pdf"]["blob"], "hash-changed")
         self.assertNotIn("notes/deleted.pdf", manifest)
 
@@ -92,6 +114,42 @@ class ResourceChangePlanningTests(unittest.TestCase):
         previous = {"etag": "same", "size": 100, "last_modified": "2026-11-09T10:00:00+00:00"}
         current = {"etag": "same", "size": 100, "last_modified": "2026-11-10T10:00:00+00:00"}
         self.assertTrue(MODULE.object_changed(previous, current))
+
+    def test_download_records_sha256_and_content_metadata(self):
+        payload = b"%PDF-1.7 test resource"
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "object.pdf"
+            metadata = MODULE.download_object(
+                FakeS3Client(payload),
+                "coursehubs-resources",
+                "notes/object.pdf",
+                destination,
+            )
+
+            self.assertEqual(destination.read_bytes(), payload)
+            self.assertEqual(metadata["content_sha256"], hashlib.sha256(payload).hexdigest())
+            self.assertEqual(metadata["content_type"], "application/pdf")
+            self.assertEqual(metadata["metadata"], {"source": "test"})
+
+    def test_download_rejects_incomplete_object(self):
+        payload = b"partial resource"
+
+        class IncompleteS3Client(FakeS3Client):
+            def get_object(self, Bucket, Key):
+                response = super().get_object(Bucket, Key)
+                response["ContentLength"] = len(self.payload) + 1
+                return response
+
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "object.pdf"
+            with self.assertRaises(MODULE.BackupError):
+                MODULE.download_object(
+                    IncompleteS3Client(payload),
+                    "coursehubs-resources",
+                    "notes/object.pdf",
+                    destination,
+                )
+            self.assertFalse(destination.exists())
 
 
 if __name__ == "__main__":

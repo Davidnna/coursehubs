@@ -14,6 +14,15 @@ final class GoogleAuthController
             self::redirectFrontend('/login?google=unavailable');
         }
 
+        RateLimiter::enforce(
+            Database::connection(),
+            'google_oauth_start_ip',
+            RateLimiter::clientIp(),
+            60,
+            3600,
+            900
+        );
+
         $state = bin2hex(random_bytes(32));
         $redirectParts = parse_url($redirectUri);
         $secure = is_array($redirectParts) && ($redirectParts['scheme'] ?? '') === 'https';
@@ -59,6 +68,15 @@ final class GoogleAuthController
         if (isset($_GET['error'])) {
             self::redirectFrontend('/login?google=cancelled');
         }
+
+        RateLimiter::enforce(
+            Database::connection(),
+            'google_oauth_callback_ip',
+            RateLimiter::clientIp(),
+            60,
+            3600,
+            900
+        );
 
         try {
             $tokens = self::exchangeAuthorizationCode((string) ($_GET['code'] ?? ''));

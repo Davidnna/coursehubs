@@ -115,6 +115,34 @@ jobs:
                   set -euo pipefail
                   restic -o "s3.region=$BACKUP_S3_REGION" -o 's3.bucket-lookup=path' init
 
+            - name: Apply retention before the storage capacity check
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  database_snapshots="$(restic -o "s3.region=$BACKUP_S3_REGION" -o 's3.bucket-lookup=path' snapshots --json --tag database)"
+                  delta_snapshots="$(restic -o "s3.region=$BACKUP_S3_REGION" -o 's3.bucket-lookup=path' snapshots --json --tag resource-delta)"
+                  full_snapshots="$(restic -o "s3.region=$BACKUP_S3_REGION" -o 's3.bucket-lookup=path' snapshots --json --tag resource-full)"
+
+                  if python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin) else 1)' <<< "$database_snapshots"; then
+                      restic -o "s3.region=$BACKUP_S3_REGION" -o 's3.bucket-lookup=path' \
+                          forget --group-by host,paths --tag database --keep-daily 7 --keep-weekly 4
+                  fi
+                  if python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin) else 1)' <<< "$delta_snapshots"; then
+                      restic -o "s3.region=$BACKUP_S3_REGION" -o 's3.bucket-lookup=path' \
+                          forget --group-by host,paths --tag resource-delta --keep-daily 7
+                  fi
+                  if python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin) else 1)' <<< "$full_snapshots"; then
+                      restic -o "s3.region=$BACKUP_S3_REGION" -o 's3.bucket-lookup=path' \
+                          forget --group-by host,paths --tag resource-full --keep-weekly 4
+                  fi
+
+                  all_snapshots="$(restic -o "s3.region=$BACKUP_S3_REGION" -o 's3.bucket-lookup=path' snapshots --json)"
+                  if python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin) else 1)' <<< "$all_snapshots"; then
+                      restic -o "s3.region=$BACKUP_S3_REGION" -o 's3.bucket-lookup=path' prune
+                  else
+                      echo 'No previous snapshots exist; retention pruning is not required.'
+                  fi
+
             - name: Create encrypted PostgreSQL dump
               shell: bash
               run: |

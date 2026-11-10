@@ -140,7 +140,7 @@ jobs:
                       echo
                       echo '- The latest complete resource backup was reconstructed.'
                       echo '- The destination bucket was confirmed empty before upload.'
-                      echo '- Restored object count and total size were verified against the backup manifest.'
+                      echo '- Restored object names, sizes and SHA-256 content checksums were verified against the reconstructed backup objects.'
                       echo '- The production resource bucket was not modified.'
                       echo '- Destination: `coursehubs-resources-recovery`.'
                   } >> "$GITHUB_STEP_SUMMARY"

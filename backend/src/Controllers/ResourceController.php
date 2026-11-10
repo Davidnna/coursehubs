@@ -184,6 +184,7 @@ final class ResourceController
         $finfo = new finfo(FILEINFO_MIME_TYPE);
         $mimeType = (string) $finfo->file((string) $file['tmp_name']);
         if (!in_array($mimeType, self::MIME_BY_EXTENSION[$extension], true)) Response::error('The selected file does not match its file type. Save the document again and retry.', 422);
+        self::validateDocumentStructure((string) $file['tmp_name'], $extension);
 
         $title = trim((string) ($_POST['title'] ?? ''));
         $courseId = self::positiveId($_POST['course_id'] ?? null);
@@ -713,6 +714,111 @@ final class ResourceController
             catch (Throwable $exception) { error_log('CourseHubs resource object cleanup failed: ' . $exception->getMessage()); }
         }
         Response::json(['message' => 'Resource removed.']);
+    }
+
+    private static function validateDocumentStructure(string $path, string $extension): void
+    {
+        if ($extension === 'pdf') {
+            $handle = fopen($path, 'rb');
+            if ($handle === false) {
+                Response::error('The selected PDF could not be inspected. Save it again and retry.', 422);
+            }
+
+            $header = fread($handle, 5);
+            $fileSize = filesize($path);
+            $tail = '';
+
+            if (is_int($fileSize) && $fileSize > 0) {
+                fseek($handle, max(0, $fileSize - 4096));
+                $tail = (string) fread($handle, 4096);
+            }
+
+            fclose($handle);
+
+            if ($header !== '%PDF-' || !str_contains($tail, '%%EOF')) {
+                Response::error('The selected file is not a complete PDF document.', 422);
+            }
+
+            return;
+        }
+
+        if (!in_array($extension, ['docx', 'pptx'], true)) {
+            Response::error('Upload a PDF, DOCX or PPTX document.', 422);
+        }
+
+        if (!class_exists(ZipArchive::class)) {
+            error_log('CourseHubs Office document validation is unavailable because PHP ZipArchive is not installed.');
+            Response::error('Document validation is temporarily unavailable. Please try again later.', 503);
+        }
+
+        $archive = new ZipArchive();
+        $opened = $archive->open($path, ZipArchive::RDONLY);
+        if ($opened !== true) {
+            Response::error('The selected Office document is damaged or is not a valid DOCX/PPTX file.', 422);
+        }
+
+        try {
+            if ($archive->numFiles < 3 || $archive->numFiles > 10000) {
+                Response::error('The selected Office document has an invalid internal structure.', 422);
+            }
+
+            $mainDocumentPath = $extension === 'docx' ? 'word/document.xml' : 'ppt/presentation.xml';
+            $contentTypesInfo = $archive->statName('[Content_Types].xml');
+            $mainDocumentInfo = $archive->statName($mainDocumentPath);
+            if (!is_array($contentTypesInfo)
+                || !is_array($mainDocumentInfo)
+                || (int) ($contentTypesInfo['size'] ?? 0) > 1024 * 1024
+                || (int) ($mainDocumentInfo['size'] ?? 0) > 20 * 1024 * 1024) {
+                Response::error('The selected Office document does not contain a valid document package.', 422);
+            }
+
+            $contentTypes = $archive->getFromName('[Content_Types].xml');
+            $mainDocument = $archive->getFromName($mainDocumentPath);
+            $expectedContentType = $extension === 'docx'
+                ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
+                : 'application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml';
+
+            if (!is_string($contentTypes)
+                || !str_contains($contentTypes, $expectedContentType)
+                || !is_string($mainDocument)
+                || $mainDocument === '') {
+                Response::error('The selected Office document does not contain a valid document package.', 422);
+            }
+
+            $totalUncompressedBytes = 0;
+            for ($index = 0; $index < $archive->numFiles; $index++) {
+                $entryName = $archive->getNameIndex($index);
+                if (!is_string($entryName) || $entryName === '') {
+                    Response::error('The selected Office document contains an invalid file entry.', 422);
+                }
+
+                $normalisedName = str_replace('\\', '/', $entryName);
+                if (str_starts_with($normalisedName, '/')
+                    || preg_match('~(^|/)\.\.(/|$)~', $normalisedName)
+                    || str_contains(strtolower($normalisedName), 'vbaproject.bin')) {
+                    Response::error('The selected Office document contains an unsupported or unsafe component.', 422);
+                }
+
+                $entry = $archive->statIndex($index);
+                if (!is_array($entry)) {
+                    Response::error('The selected Office document could not be inspected completely.', 422);
+                }
+
+                $uncompressedBytes = max(0, (int) ($entry['size'] ?? 0));
+                $compressedBytes = max(0, (int) ($entry['comp_size'] ?? 0));
+                $totalUncompressedBytes += $uncompressedBytes;
+
+                if ($totalUncompressedBytes > 100 * 1024 * 1024
+                    || ($uncompressedBytes > 0 && (
+                        $compressedBytes === 0
+                        || $uncompressedBytes > $compressedBytes * 100
+                    ))) {
+                    Response::error('The selected Office document exceeds safe document-processing limits.', 422);
+                }
+            }
+        } finally {
+            $archive->close();
+        }
     }
 
     private static function contributorCanUploadCourse(PDO $db, int $userId, int $courseId, int $sessionId): bool

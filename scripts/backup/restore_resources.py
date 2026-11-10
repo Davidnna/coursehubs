@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -180,9 +181,30 @@ def upload_to_empty_bucket(resources_dir: Path, bucket: str) -> None:
     manifest = json.loads((resources_dir / "manifest.json").read_text(encoding="utf-8"))
     objects = manifest.get("objects", {})
     transfer_config = TransferConfig(multipart_threshold=64 * 1024 * 1024, max_concurrency=4)
+    expected: dict[str, dict[str, Any]] = {}
 
     for index, (key, entry) in enumerate(objects.items(), start=1):
         blob_path = resources_dir / "objects" / entry["blob"]
+        if not blob_path.is_file():
+            raise RestoreError(f"The backup object for {key} is missing.")
+
+        digest = hashlib.sha256()
+        with blob_path.open("rb") as source:
+            while True:
+                chunk = source.read(1024 * 1024)
+                if not chunk:
+                    break
+                digest.update(chunk)
+
+        expected[key] = {
+            "size": blob_path.stat().st_size,
+            "sha256": digest.hexdigest(),
+        }
+        if int(entry.get("size", -1)) != expected[key]["size"]:
+            raise RestoreError(f"The backup object size does not match its manifest: {key}")
+        if entry.get("content_sha256") and entry["content_sha256"] != expected[key]["sha256"]:
+            raise RestoreError(f"The backup object checksum does not match its manifest: {key}")
+
         extra_args: dict[str, Any] = {
             "ContentType": entry.get("content_type") or "application/octet-stream",
         }
@@ -208,16 +230,35 @@ def upload_to_empty_bucket(resources_dir: Path, bucket: str) -> None:
             print(f"Uploaded {index} of {len(objects)} restored resource(s).")
 
     paginator = client.get_paginator("list_objects_v2")
-    restored_count = 0
-    restored_bytes = 0
+    actual: dict[str, int] = {}
     for page in paginator.paginate(Bucket=bucket):
         for item in page.get("Contents", []):
-            restored_count += 1
-            restored_bytes += int(item.get("Size", 0))
+            actual[str(item["Key"])] = int(item.get("Size", 0))
 
-    expected_bytes = sum(int(entry.get("size", 0)) for entry in objects.values())
-    if restored_count != len(objects) or restored_bytes != expected_bytes:
-        raise RestoreError("The destination verification did not match the restored resource manifest.")
+    expected_sizes = {key: value["size"] for key, value in expected.items()}
+    if actual != expected_sizes:
+        raise RestoreError("The destination object names or sizes do not match the recovery manifest.")
+
+    for index, (key, expected_entry) in enumerate(expected.items(), start=1):
+        response = client.get_object(Bucket=bucket, Key=key)
+        digest = hashlib.sha256()
+        bytes_read = 0
+        try:
+            body = response["Body"]
+            while True:
+                chunk = body.read(1024 * 1024)
+                if not chunk:
+                    break
+                digest.update(chunk)
+                bytes_read += len(chunk)
+        finally:
+            response["Body"].close()
+
+        if bytes_read != expected_entry["size"] or digest.hexdigest() != expected_entry["sha256"]:
+            raise RestoreError(f"The restored object failed its content verification: {key}")
+
+        if index % 25 == 0 or index == len(expected):
+            print(f"Verified contents of {index} of {len(expected)} restored resource(s).")
 
 
 def main() -> int:

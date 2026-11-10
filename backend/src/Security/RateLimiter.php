@@ -10,29 +10,46 @@ declare(strict_types=1);
  */
 final class RateLimiter
 {
-    private static int $operations = 0;
-
     public static function clientIp(): string
     {
-        $candidates = [];
+        $remoteAddress = self::normaliseIp((string) ($_SERVER['REMOTE_ADDR'] ?? ''));
+        if ($remoteAddress === null) {
+            return 'unknown';
+        }
+
+        $trustedProxies = self::trustedProxyCidrs();
+        if (!self::isTrustedProxy($remoteAddress, $trustedProxies)) {
+            return $remoteAddress;
+        }
 
         $forwarded = (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
         if ($forwarded !== '') {
-            $candidates[] = explode(',', $forwarded)[0];
-        }
+            $chain = [];
 
-        $candidates[] = $_SERVER['HTTP_CF_CONNECTING_IP'] ?? '';
-        $candidates[] = $_SERVER['HTTP_X_REAL_IP'] ?? '';
-        $candidates[] = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+            foreach (explode(',', $forwarded) as $candidate) {
+                $ip = self::normaliseIp($candidate);
+                if ($ip !== null) {
+                    $chain[] = $ip;
+                }
+            }
 
-        foreach ($candidates as $candidate) {
-            $ip = self::normaliseIp((string) $candidate);
-            if ($ip !== null) {
-                return $ip;
+            $chain[] = $remoteAddress;
+
+            for ($index = count($chain) - 1; $index >= 0; $index--) {
+                if (!self::isTrustedProxy($chain[$index], $trustedProxies)) {
+                    return $chain[$index];
+                }
             }
         }
 
-        return 'unknown';
+        foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_REAL_IP'] as $header) {
+            $candidate = self::normaliseIp((string) ($_SERVER[$header] ?? ''));
+            if ($candidate !== null && !self::isTrustedProxy($candidate, $trustedProxies)) {
+                return $candidate;
+            }
+        }
+
+        return $remoteAddress;
     }
 
     /**
@@ -111,14 +128,7 @@ final class RateLimiter
             true
         );
 
-        self::$operations++;
-        if (self::$operations % 100 === 0) {
-            try {
-                $db->exec("DELETE FROM auth_rate_limits WHERE updated_at < NOW() - INTERVAL '7 days'");
-            } catch (Throwable $exception) {
-                error_log('CourseHubs rate-limit cleanup failed: ' . $exception->getMessage());
-            }
-        }
+        self::occasionallyCleanExpiredRecords($db);
 
         return [
             'allowed' => !$blocked,
@@ -165,6 +175,73 @@ final class RateLimiter
     {
         $statement = $db->prepare('DELETE FROM auth_rate_limits WHERE key_hash = ?');
         $statement->execute([self::keyHash($action, $subject)]);
+    }
+
+    private static function occasionallyCleanExpiredRecords(PDO $db): void
+    {
+        try {
+            if (random_int(1, 100) === 1) {
+                $db->exec("DELETE FROM auth_rate_limits WHERE updated_at < NOW() - INTERVAL '7 days'");
+            }
+        } catch (Throwable $exception) {
+            error_log('CourseHubs rate-limit cleanup failed: ' . $exception->getMessage());
+        }
+    }
+
+    private static function trustedProxyCidrs(): array
+    {
+        $configured = (string) Config::get('TRUSTED_PROXY_CIDRS', '127.0.0.1/32,::1/128');
+        if (trim($configured) === '') {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map('trim', explode(',', $configured)),
+            static fn (string $cidr): bool => $cidr !== ''
+        ));
+    }
+
+    private static function isTrustedProxy(string $ip, array $trustedCidrs): bool
+    {
+        foreach ($trustedCidrs as $cidr) {
+            if (self::ipMatchesCidr($ip, $cidr)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function ipMatchesCidr(string $ip, string $cidr): bool
+    {
+        $parts = explode('/', trim($cidr), 2);
+        $network = self::normaliseIp($parts[0]);
+        $packedIp = @inet_pton($ip);
+        $packedNetwork = $network !== null ? @inet_pton($network) : false;
+
+        if ($packedIp === false || $packedNetwork === false || strlen($packedIp) !== strlen($packedNetwork)) {
+            return false;
+        }
+
+        $addressBits = strlen($packedIp) * 8;
+        $prefixLength = isset($parts[1]) ? filter_var($parts[1], FILTER_VALIDATE_INT) : $addressBits;
+        if ($prefixLength === false || $prefixLength < 0 || $prefixLength > $addressBits) {
+            return false;
+        }
+
+        $wholeBytes = intdiv($prefixLength, 8);
+        $remainingBits = $prefixLength % 8;
+
+        if ($wholeBytes > 0 && substr($packedIp, 0, $wholeBytes) !== substr($packedNetwork, 0, $wholeBytes)) {
+            return false;
+        }
+
+        if ($remainingBits === 0) {
+            return true;
+        }
+
+        $mask = (0xff << (8 - $remainingBits)) & 0xff;
+        return (ord($packedIp[$wholeBytes]) & $mask) === (ord($packedNetwork[$wholeBytes]) & $mask);
     }
 
     private static function keyHash(string $action, string $subject): string

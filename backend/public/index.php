@@ -70,6 +70,15 @@ require __DIR__ . '/../src/Controllers/ResourceController.php';
 
 Config::load(__DIR__ . '/../.env');
 
+// API responses must not be framed, MIME-sniffed or cached by shared clients.
+// HTTPS transport policy should be configured at the public hosting edge.
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('X-Permitted-Cross-Domain-Policies: none');
+header('Referrer-Policy: strict-origin-when-cross-origin');
+header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+header('X-Robots-Tag: noindex, nofollow');
+
 // CORS is restricted to the configured frontend origin. No wildcard is
 // used in production, and the API uses bearer tokens rather than cookies.
 $allowedOrigin = rtrim((string) Config::get('FRONTEND_ORIGIN', 'http://localhost:5173'), '/');

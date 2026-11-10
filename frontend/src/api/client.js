@@ -4,7 +4,6 @@ const TOKEN_KEY = 'coursehubs_token';
 const ERROR_MESSAGES = {
     INVALID_CREDENTIALS: 'The email address or password is incorrect.',
     CURRENT_PASSWORD_INVALID: 'Your current password is incorrect.',
-    ACCOUNT_TEMPORARILY_LOCKED: 'Too many unsuccessful attempts. Please try again later.',
     AUTH_RATE_LIMITED: 'Too many attempts. Please wait a little while and try again.',
     EMAIL_NOT_VERIFIED: 'Verify your email address before signing in.',
     ACCOUNT_SUSPENDED: 'This account is currently unavailable. Please contact CourseHubs support.',

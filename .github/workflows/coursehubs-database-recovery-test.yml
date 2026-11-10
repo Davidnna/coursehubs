@@ -113,18 +113,64 @@ jobs:
               shell: bash
               run: bash scripts/backup/restore_database.sh
 
-            - name: Verify restored database tables
+            - name: Verify restored database schema and core records
               shell: bash
               run: |
                   set -euo pipefail
                   docker run --rm -e RESTORE_DATABASE_URL postgres:18-alpine sh -euc '
-                      count="$(psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc \
-                          "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '\''public'\'' AND table_type = '\''BASE TABLE'\''")"
-                      if [ "$count" -lt 1 ]; then
-                          printf "%s\\n" "No application tables were found after recovery." >&2
+                      missing="$(psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "
+                          SELECT string_agg(expected.name, '\'', '\'' ORDER BY expected.name)
+                          FROM unnest(ARRAY[
+                              '\''coursehubs_schema_migrations'\'',
+                              '\''users'\'',
+                              '\''faculties'\'',
+                              '\''departments'\'',
+                              '\''programmes'\'',
+                              '\''academic_sessions'\'',
+                              '\''courses'\'',
+                              '\''course_offerings'\'',
+                              '\''uploads'\'',
+                              '\''administrator_scopes'\'',
+                              '\''auth_rate_limits'\''
+                          ]) AS expected(name)
+                          WHERE to_regclass('\''public.'\'' || expected.name) IS NULL
+                      ")"
+                      if [ -n "$missing" ]; then
+                          printf "Missing required restored tables: %s\\n" "$missing" >&2
                           exit 1
                       fi
-                      printf "Recovered public tables: %s\\n" "$count"
+
+                      migrations="$(psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc \
+                          "SELECT COUNT(*) FROM public.coursehubs_schema_migrations")"
+                      if [ "$migrations" -lt 13 ]; then
+                          printf "Expected at least 13 applied migrations; found %s.\\n" "$migrations" >&2
+                          exit 1
+                      fi
+
+                      users="$(psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "SELECT COUNT(*) FROM public.users")"
+                      courses="$(psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "SELECT COUNT(*) FROM public.courses WHERE deleted_at IS NULL")"
+                      offerings="$(psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "SELECT COUNT(*) FROM public.course_offerings WHERE deleted_at IS NULL")"
+                      uploads="$(psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "SELECT COUNT(*) FROM public.uploads WHERE deleted_at IS NULL")"
+
+                      if [ "$users" -lt 1 ] || [ "$courses" -lt 1 ] || [ "$offerings" -lt 1 ]; then
+                          printf "%s\\n" "Core account, course or offering records are missing after recovery." >&2
+                          exit 1
+                      fi
+
+                      orphan_uploads="$(psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "
+                          SELECT COUNT(*)
+                          FROM public.uploads u
+                          LEFT JOIN public.courses c ON c.id = u.course_id
+                          WHERE c.id IS NULL
+                      ")"
+                      if [ "$orphan_uploads" -ne 0 ]; then
+                          printf "Recovered database contains %s uploads without a course.\\n" "$orphan_uploads" >&2
+                          exit 1
+                      fi
+
+                      printf "Applied migrations: %s\\nUsers: %s\\nActive courses: %s\\nActive course offerings: %s\\nActive uploads: %s\\n" \
+                          "$migrations" "$users" "$courses" "$offerings" "$uploads"
+                      printf "%s\\n" "Required tables and upload relationships verified."
                   '
 
             - name: Publish recovery test summary

@@ -43,6 +43,15 @@ final class AuthController
         }
 
         $db = Database::connection();
+        RateLimiter::enforce(
+            $db,
+            'register_ip',
+            RateLimiter::clientIp(),
+            300,
+            3600,
+            900
+        );
+
         $departmentId = null;
         $programmeId = null;
         if ($accountType === 'student') {
@@ -81,6 +90,15 @@ final class AuthController
         }
 
         $email = strtolower(trim((string) $body['email']));
+        RateLimiter::enforce(
+            $db,
+            'register_email',
+            $email,
+            3,
+            3600,
+            3600
+        );
+
         $existing = $db->prepare('SELECT id FROM users WHERE email = ? AND deleted_at IS NULL AND status = \'active\' LIMIT 1');
         $existing->execute([$email]);
         if ($existing->fetch()) {
@@ -345,132 +363,69 @@ final class AuthController
             Response::error('Enter your email address and password.', 422);
         }
 
-        $db->beginTransaction();
-        try {
-            $stmt = $db->prepare(
-                'SELECT id, first_name, surname, middle_name, email, password_hash,
-                        profile_picture_data, account_type, level,
-                        CASE WHEN is_admin IS TRUE THEN 1 ELSE 0 END AS is_admin,
-                        CASE WHEN is_super_admin IS TRUE THEN 1 ELSE 0 END AS is_super_admin,
-                        CASE WHEN is_verified IS TRUE THEN 1 ELSE 0 END AS is_verified,
-                        status, failed_login_attempts, locked_until, auth_token_version
-                 FROM users
-                 WHERE email = ? AND deleted_at IS NULL
-                 LIMIT 1
-                 FOR UPDATE'
+        $stmt = $db->prepare(
+            'SELECT id, first_name, surname, middle_name, email, password_hash,
+                    profile_picture_data, account_type, level,
+                    CASE WHEN is_admin IS TRUE THEN 1 ELSE 0 END AS is_admin,
+                    CASE WHEN is_super_admin IS TRUE THEN 1 ELSE 0 END AS is_super_admin,
+                    CASE WHEN is_verified IS TRUE THEN 1 ELSE 0 END AS is_verified,
+                    status, auth_token_version
+             FROM users
+             WHERE email = ? AND deleted_at IS NULL
+             LIMIT 1'
+        );
+        $stmt->execute([$email]);
+        $user = $stmt->fetch();
+
+        if (!$user) {
+            password_verify(
+                $password,
+                '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.'
             );
-            $stmt->execute([$email]);
-            $user = $stmt->fetch();
 
-            if (!$user) {
-                $db->rollBack();
-                password_verify(
-                    $password,
-                    '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.'
-                );
+            RateLimiter::enforce(
+                $db,
+                'login_email_failures',
+                $email,
+                10,
+                900,
+                300
+            );
+            Response::error('The email address or password is incorrect.', 401, ['code' => 'INVALID_CREDENTIALS']);
+        }
 
-                $failureLimit = RateLimiter::consume(
-                    $db,
-                    'login_email_failures',
-                    $email,
-                    10,
-                    900,
-                    900
-                );
-                RateLimiter::rejectIfLimited($failureLimit);
-                Response::error('The email address or password is incorrect.', 401, ['code' => 'INVALID_CREDENTIALS']);
-            }
-
-            $now = new DateTimeImmutable();
-            if ($user['locked_until'] !== null) {
-                $lockedUntil = new DateTimeImmutable((string) $user['locked_until']);
-                if ($lockedUntil > $now) {
-                    $db->rollBack();
-                    header('Retry-After: ' . max(1, $lockedUntil->getTimestamp() - $now->getTimestamp()));
-                    Response::error(
-                        'Too many unsuccessful attempts. Please try again later.',
-                        429,
-                        ['code' => 'ACCOUNT_TEMPORARILY_LOCKED']
-                    );
-                }
-            }
-
-            $attempts = (int) $user['failed_login_attempts'];
-            if ($user['locked_until'] !== null && new DateTimeImmutable((string) $user['locked_until']) <= $now) {
-                $attempts = 0;
-            }
-
-            if (!password_verify($password, (string) $user['password_hash'])) {
-                $attempts++;
-                $lockoutThreshold = self::settingInt($db, 'login_lockout_threshold', 5);
-                $lockoutMinutes = self::settingInt($db, 'login_lockout_cooldown_minutes', 15);
-                $isLocked = $attempts >= $lockoutThreshold;
-                $lockedUntil = $isLocked
-                    ? $now->modify('+' . $lockoutMinutes . ' minutes')->format(DateTimeInterface::ATOM)
-                    : null;
-
-                $db->prepare(
-                    'UPDATE users
-                     SET failed_login_attempts = ?, locked_until = ?
-                     WHERE id = ?'
-                )->execute([$attempts, $lockedUntil, (int) $user['id']]);
-                $db->commit();
-
-                $failureLimit = RateLimiter::consume(
-                    $db,
-                    'login_email_failures',
-                    $email,
-                    10,
-                    900,
-                    900
-                );
-
-                if ($isLocked) {
-                    header('Retry-After: ' . ($lockoutMinutes * 60));
-                    Response::error(
-                        'Too many unsuccessful attempts. Your account is temporarily locked. Please try again later.',
-                        429,
-                        ['code' => 'ACCOUNT_TEMPORARILY_LOCKED']
-                    );
-                }
-
-                RateLimiter::rejectIfLimited($failureLimit);
-                Response::error('The email address or password is incorrect.', 401, ['code' => 'INVALID_CREDENTIALS']);
-            }
-
-            if ($user['status'] !== 'active') {
-                $db->prepare(
-                    'UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?'
-                )->execute([(int) $user['id']]);
-                $db->commit();
-                RateLimiter::clear($db, 'login_email_failures', $email);
-                Response::error('This account is currently suspended. Contact the department administrator.', 403, ['code' => 'ACCOUNT_SUSPENDED']);
-            }
-
-            if ((int) $user['is_verified'] !== 1) {
-                $db->prepare(
-                    'UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?'
-                )->execute([(int) $user['id']]);
-                $db->commit();
-                RateLimiter::clear($db, 'login_email_failures', $email);
-                Response::error('Verify your email address before signing in.', 403, [
-                    'code' => 'EMAIL_NOT_VERIFIED',
-                    'email' => $email,
-                ]);
-            }
-
-            $db->prepare(
-                'UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?'
-            )->execute([(int) $user['id']]);
-            $db->commit();
-        } catch (Throwable $exception) {
-            if ($db->inTransaction()) {
-                $db->rollBack();
-            }
-            throw $exception;
+        if (!password_verify($password, (string) $user['password_hash'])) {
+            RateLimiter::enforce(
+                $db,
+                'login_email_failures',
+                $email,
+                10,
+                900,
+                300
+            );
+            Response::error('The email address or password is incorrect.', 401, ['code' => 'INVALID_CREDENTIALS']);
         }
 
         RateLimiter::clear($db, 'login_email_failures', $email);
+
+        if ($user['status'] !== 'active') {
+            Response::error('This account is currently suspended. Contact the department administrator.', 403, ['code' => 'ACCOUNT_SUSPENDED']);
+        }
+
+        if ((int) $user['is_verified'] !== 1) {
+            Response::error('Verify your email address before signing in.', 403, [
+                'code' => 'EMAIL_NOT_VERIFIED',
+                'email' => $email,
+            ]);
+        }
+
+        // Clear legacy lockout fields left by earlier releases. Login protection
+        // now uses short-lived IP and email buckets instead of account lockouts.
+        $db->prepare(
+            'UPDATE users
+             SET failed_login_attempts = 0, locked_until = NULL
+             WHERE id = ? AND (failed_login_attempts <> 0 OR locked_until IS NOT NULL)'
+        )->execute([(int) $user['id']]);
 
         $token = Jwt::issue((int) $user['id'], (int) $user['auth_token_version']);
         Response::json([
@@ -668,18 +623,6 @@ final class AuthController
         RateLimiter::clear($db, 'login_email_failures', strtolower((string) $reset['email']));
 
         Response::json(['message' => 'Your password has been reset. You can now sign in with your new password.']);
-    }
-
-    private static function settingInt(PDO $db, string $key, int $default): int
-    {
-        try {
-            $stmt = $db->prepare('SELECT setting_value FROM admin_settings WHERE setting_key = ? LIMIT 1');
-            $stmt->execute([$key]);
-            $value = $stmt->fetchColumn();
-            return is_numeric($value) && (int) $value > 0 ? (int) $value : $default;
-        } catch (Throwable) {
-            return $default;
-        }
     }
 
     private static function input(): array

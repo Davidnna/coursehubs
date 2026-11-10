@@ -229,44 +229,98 @@ final class AuthController
 
     public static function resendVerification(): void
     {
+        $db = Database::connection();
+        RateLimiter::enforce(
+            $db,
+            'resend_verification_ip',
+            RateLimiter::clientIp(),
+            120,
+            3600,
+            3600
+        );
+
         $body = self::input();
         $email = strtolower(trim((string) ($body['email'] ?? '')));
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             Response::error('Enter a valid email address.', 422, ['fields' => ['email' => 'Enter a valid email address.']]);
         }
 
-        $db = Database::connection();
-        $stmt = $db->prepare(
+        $lookup = $db->prepare(
             'SELECT id, first_name, CASE WHEN is_verified IS TRUE THEN 1 ELSE 0 END AS is_verified
-             FROM users WHERE email = ? AND deleted_at IS NULL AND status = \'active\' LIMIT 1'
+             FROM users
+             WHERE email = ? AND deleted_at IS NULL AND status = \'active\'
+             LIMIT 1'
         );
-        $stmt->execute([$email]);
-        $user = $stmt->fetch();
+        $lookup->execute([$email]);
+        $candidate = $lookup->fetch();
+        $token = null;
+        $firstName = '';
 
-        if ($user && (int) $user['is_verified'] !== 1) {
-            $recent = $db->prepare(
-                "SELECT id FROM email_verifications
-                 WHERE user_id = ? AND created_at > NOW() - INTERVAL '60 seconds'
-                 ORDER BY created_at DESC LIMIT 1"
-            );
-            $recent->execute([(int) $user['id']]);
-            if (!$recent->fetch()) {
-                $token = bin2hex(random_bytes(32));
-                $db->beginTransaction();
-                try {
-                    $db->prepare('UPDATE email_verifications SET expires_at = NOW() WHERE user_id = ? AND verified_at IS NULL')
-                        ->execute([(int) $user['id']]);
-                    $db->prepare('INSERT INTO email_verifications (user_id, token, expires_at) VALUES (?, ?, NOW() + INTERVAL \'24 hours\')')
-                        ->execute([(int) $user['id'], hash('sha256', $token)]);
-                    $db->commit();
-                } catch (Throwable $e) {
-                    if ($db->inTransaction()) {
-                        $db->rollBack();
+        if ($candidate && (int) $candidate['is_verified'] !== 1) {
+            $db->beginTransaction();
+            try {
+                $lock = $db->prepare(
+                    'SELECT id, first_name, CASE WHEN is_verified IS TRUE THEN 1 ELSE 0 END AS is_verified
+                     FROM users
+                     WHERE id = ? AND deleted_at IS NULL AND status = \'active\'
+                     LIMIT 1 FOR UPDATE'
+                );
+                $lock->execute([(int) $candidate['id']]);
+                $user = $lock->fetch();
+
+                if ($user && (int) $user['is_verified'] !== 1) {
+                    $recent = $db->prepare(
+                        "SELECT id FROM email_verifications
+                         WHERE user_id = ? AND created_at > NOW() - INTERVAL '60 seconds'
+                         ORDER BY created_at DESC LIMIT 1"
+                    );
+                    $recent->execute([(int) $user['id']]);
+
+                    if (!$recent->fetch()) {
+                        $minuteLimit = RateLimiter::consume(
+                            $db,
+                            'resend_verification_email_minute',
+                            $email,
+                            1,
+                            60,
+                            60
+                        );
+                        $hourLimit = RateLimiter::consume(
+                            $db,
+                            'resend_verification_email_hour',
+                            $email,
+                            5,
+                            3600,
+                            3600
+                        );
+
+                        if ($minuteLimit['allowed'] && $hourLimit['allowed']) {
+                            $token = bin2hex(random_bytes(32));
+                            $db->prepare(
+                                'UPDATE email_verifications
+                                 SET expires_at = NOW()
+                                 WHERE user_id = ? AND verified_at IS NULL'
+                            )->execute([(int) $user['id']]);
+                            $db->prepare(
+                                'INSERT INTO email_verifications (user_id, token, expires_at)
+                                 VALUES (?, ?, NOW() + INTERVAL \'24 hours\')'
+                            )->execute([(int) $user['id'], hash('sha256', $token)]);
+                            $firstName = (string) $user['first_name'];
+                        }
                     }
-                    throw $e;
                 }
-                Mailer::sendVerificationEmail($email, (string) $user['first_name'], $token);
+
+                $db->commit();
+            } catch (Throwable $exception) {
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+                throw $exception;
             }
+        }
+
+        if (is_string($token) && $token !== '') {
+            Mailer::sendVerificationEmail($email, $firstName, $token);
         }
 
         Response::json(['message' => self::GENERIC_RESEND_MESSAGE]);
@@ -274,6 +328,16 @@ final class AuthController
 
     public static function login(): void
     {
+        $db = Database::connection();
+        RateLimiter::enforce(
+            $db,
+            'login_ip',
+            RateLimiter::clientIp(),
+            300,
+            900,
+            900
+        );
+
         $body = self::input();
         $email = strtolower(trim((string) ($body['email'] ?? '')));
         $password = (string) ($body['password'] ?? '');
@@ -281,61 +345,132 @@ final class AuthController
             Response::error('Enter your email address and password.', 422);
         }
 
-        $db = Database::connection();
-        $stmt = $db->prepare(
-            'SELECT id, first_name, surname, middle_name, email, password_hash, profile_picture_data, account_type, level,
-                    CASE WHEN is_admin IS TRUE THEN 1 ELSE 0 END AS is_admin,
-                    CASE WHEN is_super_admin IS TRUE THEN 1 ELSE 0 END AS is_super_admin,
-                    CASE WHEN is_verified IS TRUE THEN 1 ELSE 0 END AS is_verified, status, failed_login_attempts,
-                    locked_until, auth_token_version
-             FROM users
-             WHERE email = ? AND deleted_at IS NULL
-             LIMIT 1'
-        );
-        $stmt->execute([$email]);
-        $user = $stmt->fetch();
+        $db->beginTransaction();
+        try {
+            $stmt = $db->prepare(
+                'SELECT id, first_name, surname, middle_name, email, password_hash,
+                        profile_picture_data, account_type, level,
+                        CASE WHEN is_admin IS TRUE THEN 1 ELSE 0 END AS is_admin,
+                        CASE WHEN is_super_admin IS TRUE THEN 1 ELSE 0 END AS is_super_admin,
+                        CASE WHEN is_verified IS TRUE THEN 1 ELSE 0 END AS is_verified,
+                        status, failed_login_attempts, locked_until, auth_token_version
+                 FROM users
+                 WHERE email = ? AND deleted_at IS NULL
+                 LIMIT 1
+                 FOR UPDATE'
+            );
+            $stmt->execute([$email]);
+            $user = $stmt->fetch();
 
-        if (!$user) {
-            password_verify($password, '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.');
-            Response::error('The email address or password is incorrect.', 401, ['code' => 'INVALID_CREDENTIALS']);
-        }
+            if (!$user) {
+                $db->rollBack();
+                password_verify(
+                    $password,
+                    '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.'
+                );
 
-        if ($user['locked_until'] !== null && new DateTimeImmutable((string) $user['locked_until']) > new DateTimeImmutable()) {
-            Response::error('Too many unsuccessful attempts. Please try again later.', 429, ['code' => 'ACCOUNT_TEMPORARILY_LOCKED']);
-        }
-
-        $attempts = (int) $user['failed_login_attempts'];
-        $lockoutThreshold = self::settingInt($db, 'login_lockout_threshold', 5);
-        $lockoutMinutes = self::settingInt($db, 'login_lockout_cooldown_minutes', 15);
-        if ($user['locked_until'] !== null && new DateTimeImmutable((string) $user['locked_until']) <= new DateTimeImmutable()) {
-            $attempts = 0;
-        }
-
-        if (!password_verify($password, (string) $user['password_hash'])) {
-            $attempts++;
-            $lockedUntil = $attempts >= $lockoutThreshold
-                ? (new DateTimeImmutable('+' . $lockoutMinutes . ' minutes'))->format(DateTimeInterface::ATOM)
-                : null;
-            $db->prepare('UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?')
-                ->execute([$attempts, $lockedUntil, (int) $user['id']]);
-            if ($attempts >= $lockoutThreshold) {
-                Response::error('Too many unsuccessful attempts. Your account is temporarily locked for ' . $lockoutMinutes . ' minutes.', 429, ['code' => 'ACCOUNT_TEMPORARILY_LOCKED']);
+                $failureLimit = RateLimiter::consume(
+                    $db,
+                    'login_email_failures',
+                    $email,
+                    10,
+                    900,
+                    900
+                );
+                RateLimiter::rejectIfLimited($failureLimit);
+                Response::error('The email address or password is incorrect.', 401, ['code' => 'INVALID_CREDENTIALS']);
             }
-            Response::error('The email address or password is incorrect.', 401, ['code' => 'INVALID_CREDENTIALS']);
+
+            $now = new DateTimeImmutable();
+            if ($user['locked_until'] !== null) {
+                $lockedUntil = new DateTimeImmutable((string) $user['locked_until']);
+                if ($lockedUntil > $now) {
+                    $db->rollBack();
+                    header('Retry-After: ' . max(1, $lockedUntil->getTimestamp() - $now->getTimestamp()));
+                    Response::error(
+                        'Too many unsuccessful attempts. Please try again later.',
+                        429,
+                        ['code' => 'ACCOUNT_TEMPORARILY_LOCKED']
+                    );
+                }
+            }
+
+            $attempts = (int) $user['failed_login_attempts'];
+            if ($user['locked_until'] !== null && new DateTimeImmutable((string) $user['locked_until']) <= $now) {
+                $attempts = 0;
+            }
+
+            if (!password_verify($password, (string) $user['password_hash'])) {
+                $attempts++;
+                $lockoutThreshold = self::settingInt($db, 'login_lockout_threshold', 5);
+                $lockoutMinutes = self::settingInt($db, 'login_lockout_cooldown_minutes', 15);
+                $isLocked = $attempts >= $lockoutThreshold;
+                $lockedUntil = $isLocked
+                    ? $now->modify('+' . $lockoutMinutes . ' minutes')->format(DateTimeInterface::ATOM)
+                    : null;
+
+                $db->prepare(
+                    'UPDATE users
+                     SET failed_login_attempts = ?, locked_until = ?
+                     WHERE id = ?'
+                )->execute([$attempts, $lockedUntil, (int) $user['id']]);
+                $db->commit();
+
+                $failureLimit = RateLimiter::consume(
+                    $db,
+                    'login_email_failures',
+                    $email,
+                    10,
+                    900,
+                    900
+                );
+
+                if ($isLocked) {
+                    header('Retry-After: ' . ($lockoutMinutes * 60));
+                    Response::error(
+                        'Too many unsuccessful attempts. Your account is temporarily locked. Please try again later.',
+                        429,
+                        ['code' => 'ACCOUNT_TEMPORARILY_LOCKED']
+                    );
+                }
+
+                RateLimiter::rejectIfLimited($failureLimit);
+                Response::error('The email address or password is incorrect.', 401, ['code' => 'INVALID_CREDENTIALS']);
+            }
+
+            if ($user['status'] !== 'active') {
+                $db->prepare(
+                    'UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?'
+                )->execute([(int) $user['id']]);
+                $db->commit();
+                RateLimiter::clear($db, 'login_email_failures', $email);
+                Response::error('This account is currently suspended. Contact the department administrator.', 403, ['code' => 'ACCOUNT_SUSPENDED']);
+            }
+
+            if ((int) $user['is_verified'] !== 1) {
+                $db->prepare(
+                    'UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?'
+                )->execute([(int) $user['id']]);
+                $db->commit();
+                RateLimiter::clear($db, 'login_email_failures', $email);
+                Response::error('Verify your email address before signing in.', 403, [
+                    'code' => 'EMAIL_NOT_VERIFIED',
+                    'email' => $email,
+                ]);
+            }
+
+            $db->prepare(
+                'UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?'
+            )->execute([(int) $user['id']]);
+            $db->commit();
+        } catch (Throwable $exception) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            throw $exception;
         }
 
-        if ($user['status'] !== 'active') {
-            Response::error('This account is currently suspended. Contact the department administrator.', 403, ['code' => 'ACCOUNT_SUSPENDED']);
-        }
-        if ((int) $user['is_verified'] !== 1) {
-            Response::error('Verify your email address before signing in.', 403, [
-                'code' => 'EMAIL_NOT_VERIFIED',
-                'email' => $email,
-            ]);
-        }
-
-        $db->prepare('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?')
-            ->execute([(int) $user['id']]);
+        RateLimiter::clear($db, 'login_email_failures', $email);
 
         $token = Jwt::issue((int) $user['id'], (int) $user['auth_token_version']);
         Response::json([
@@ -365,35 +500,98 @@ final class AuthController
 
     public static function forgotPassword(): void
     {
+        $db = Database::connection();
+        RateLimiter::enforce(
+            $db,
+            'forgot_password_ip',
+            RateLimiter::clientIp(),
+            120,
+            3600,
+            3600
+        );
+
         $body = self::input();
         $email = strtolower(trim((string) ($body['email'] ?? '')));
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             Response::error('Enter a valid email address.', 422, ['fields' => ['email' => 'Enter a valid email address.']]);
         }
 
-        $db = Database::connection();
-        $stmt = $db->prepare(
+        $lookup = $db->prepare(
             'SELECT id, first_name, CASE WHEN is_verified IS TRUE THEN 1 ELSE 0 END AS is_verified
-             FROM users WHERE email = ? AND deleted_at IS NULL AND status = \'active\' LIMIT 1'
+             FROM users
+             WHERE email = ? AND deleted_at IS NULL AND status = \'active\'
+             LIMIT 1'
         );
-        $stmt->execute([$email]);
-        $user = $stmt->fetch();
+        $lookup->execute([$email]);
+        $candidate = $lookup->fetch();
+        $token = null;
+        $firstName = '';
 
-        if ($user && (int) $user['is_verified'] === 1) {
-            $recent = $db->prepare(
-                "SELECT id FROM password_resets
-                 WHERE user_id = ? AND created_at > NOW() - INTERVAL '60 seconds'
-                 ORDER BY created_at DESC LIMIT 1"
-            );
-            $recent->execute([(int) $user['id']]);
-            if (!$recent->fetch()) {
-                $token = bin2hex(random_bytes(32));
-                $db->prepare('UPDATE password_resets SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL')
-                    ->execute([(int) $user['id']]);
-                $db->prepare('INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, NOW() + INTERVAL \'1 hour\')')
-                    ->execute([(int) $user['id'], hash('sha256', $token)]);
-                Mailer::sendPasswordResetEmail($email, (string) $user['first_name'], $token);
+        if ($candidate && (int) $candidate['is_verified'] === 1) {
+            $db->beginTransaction();
+            try {
+                $lock = $db->prepare(
+                    'SELECT id, first_name, CASE WHEN is_verified IS TRUE THEN 1 ELSE 0 END AS is_verified
+                     FROM users
+                     WHERE id = ? AND deleted_at IS NULL AND status = \'active\'
+                     LIMIT 1 FOR UPDATE'
+                );
+                $lock->execute([(int) $candidate['id']]);
+                $user = $lock->fetch();
+
+                if ($user && (int) $user['is_verified'] === 1) {
+                    $recent = $db->prepare(
+                        "SELECT id FROM password_resets
+                         WHERE user_id = ? AND created_at > NOW() - INTERVAL '60 seconds'
+                         ORDER BY created_at DESC LIMIT 1"
+                    );
+                    $recent->execute([(int) $user['id']]);
+
+                    if (!$recent->fetch()) {
+                        $minuteLimit = RateLimiter::consume(
+                            $db,
+                            'forgot_password_email_minute',
+                            $email,
+                            1,
+                            60,
+                            60
+                        );
+                        $hourLimit = RateLimiter::consume(
+                            $db,
+                            'forgot_password_email_hour',
+                            $email,
+                            5,
+                            3600,
+                            3600
+                        );
+
+                        if ($minuteLimit['allowed'] && $hourLimit['allowed']) {
+                            $token = bin2hex(random_bytes(32));
+                            $db->prepare(
+                                'UPDATE password_resets
+                                 SET used_at = NOW()
+                                 WHERE user_id = ? AND used_at IS NULL'
+                            )->execute([(int) $user['id']]);
+                            $db->prepare(
+                                'INSERT INTO password_resets (user_id, token, expires_at)
+                                 VALUES (?, ?, NOW() + INTERVAL \'1 hour\')'
+                            )->execute([(int) $user['id'], hash('sha256', $token)]);
+                            $firstName = (string) $user['first_name'];
+                        }
+                    }
+                }
+
+                $db->commit();
+            } catch (Throwable $exception) {
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+                throw $exception;
             }
+        }
+
+        if (is_string($token) && $token !== '') {
+            Mailer::sendPasswordResetEmail($email, $firstName, $token);
         }
 
         Response::json(['message' => self::GENERIC_RESET_MESSAGE]);
@@ -401,6 +599,16 @@ final class AuthController
 
     public static function resetPassword(): void
     {
+        $db = Database::connection();
+        RateLimiter::enforce(
+            $db,
+            'reset_password_ip',
+            RateLimiter::clientIp(),
+            60,
+            3600,
+            3600
+        );
+
         $body = self::input();
         $token = trim((string) ($body['token'] ?? ''));
         $password = (string) ($body['password'] ?? '');
@@ -417,13 +625,16 @@ final class AuthController
             Response::error('Please fix the errors below.', 422, ['fields' => $errors]);
         }
 
-        $db = Database::connection();
         $db->beginTransaction();
         try {
             $stmt = $db->prepare(
-                'SELECT id, user_id FROM password_resets
-                 WHERE token = ? AND used_at IS NULL AND expires_at > NOW()
-                 ORDER BY created_at DESC LIMIT 1 FOR UPDATE'
+                'SELECT pr.id, pr.user_id, u.email
+                 FROM password_resets pr
+                 JOIN users u ON u.id = pr.user_id AND u.deleted_at IS NULL
+                 WHERE pr.token = ? AND pr.used_at IS NULL AND pr.expires_at > NOW()
+                 ORDER BY pr.created_at DESC
+                 LIMIT 1
+                 FOR UPDATE OF pr'
             );
             $stmt->execute([hash('sha256', $token)]);
             $reset = $stmt->fetch();
@@ -453,6 +664,8 @@ final class AuthController
             }
             throw $e;
         }
+
+        RateLimiter::clear($db, 'login_email_failures', strtolower((string) $reset['email']));
 
         Response::json(['message' => 'Your password has been reset. You can now sign in with your new password.']);
     }

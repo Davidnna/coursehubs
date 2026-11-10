@@ -56,6 +56,7 @@ require __DIR__ . '/../src/Support/EmailQuota.php';
 require __DIR__ . '/../src/Support/ObjectStorage.php';
 require __DIR__ . '/../src/Support/Mailer.php';
 require __DIR__ . '/../src/Security/Jwt.php';
+require __DIR__ . '/../src/Security/RateLimiter.php';
 require __DIR__ . '/../src/Security/Auth.php';
 require __DIR__ . '/../src/Controllers/AuthController.php';
 require __DIR__ . '/../src/Controllers/AccountController.php';
@@ -75,6 +76,7 @@ $allowedOrigin = rtrim((string) Config::get('FRONTEND_ORIGIN', 'http://localhost
 $requestOrigin = rtrim((string) ($_SERVER['HTTP_ORIGIN'] ?? ''), '/');
 if ($requestOrigin !== '' && hash_equals($allowedOrigin, $requestOrigin)) {
     header('Access-Control-Allow-Origin: ' . $allowedOrigin);
+    header('Access-Control-Expose-Headers: Retry-After');
     header('Vary: Origin');
 }
 header('Access-Control-Allow-Methods: GET, POST, PATCH, DELETE, OPTIONS');

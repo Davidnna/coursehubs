@@ -139,6 +139,15 @@ final class GoogleAuthController
 
     public static function exchange(): void
     {
+        RateLimiter::enforce(
+            Database::connection(),
+            'google_code_exchange_ip',
+            RateLimiter::clientIp(),
+            60,
+            3600,
+            3600
+        );
+
         $body = self::input();
         $code = trim((string) ($body['code'] ?? ''));
         if (!preg_match('/^[a-f0-9]{64}$/i', $code)) {

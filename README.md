@@ -11,6 +11,7 @@ The application includes:
 - Public home, about, features, help, contact, privacy and terms pages.
 - Student and staff accounts, email verification, sign-in and account management, including password setup for Google-only accounts and protection against self-deletion while administrator appointments remain active.
 - Google sign-in for registered accounts.
+- Authentication abuse protection, including sign-in throttling, temporary account lockouts and rate-limited password recovery and verification emails.
 - An academic directory covering faculties, departments, degree programmes, courses and academic sessions.
 - Course information organised by degree programme, level, semester and session.
 - A searchable library of approved lecture materials, past questions and model answers.

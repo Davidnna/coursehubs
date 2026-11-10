@@ -5,6 +5,7 @@ const ERROR_MESSAGES = {
     INVALID_CREDENTIALS: 'The email address or password is incorrect.',
     CURRENT_PASSWORD_INVALID: 'Your current password is incorrect.',
     ACCOUNT_TEMPORARILY_LOCKED: 'Too many unsuccessful attempts. Please try again later.',
+    AUTH_RATE_LIMITED: 'Too many attempts. Please wait a little while and try again.',
     EMAIL_NOT_VERIFIED: 'Verify your email address before signing in.',
     ACCOUNT_SUSPENDED: 'This account is currently unavailable. Please contact CourseHubs support.',
     UNAUTHENTICATED: 'Please sign in to continue.',
@@ -136,6 +137,8 @@ async function request(path, options = {}) {
         error.status = response.status;
         if (code) error.code = code;
         if (fields) error.fields = fields;
+        const retryAfter = Number(response.headers.get('Retry-After'));
+        if (Number.isFinite(retryAfter) && retryAfter > 0) error.retryAfter = retryAfter;
         if (code === 'EMAIL_NOT_VERIFIED' && typeof data?.email === 'string') error.email = data.email;
         if (response.status === 401 && token) {
             clearAuthToken();

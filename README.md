@@ -20,7 +20,7 @@ The application includes:
 - Management of lecturers, course representatives and course advisers.
 - Administrative tools for maintaining academic information and platform content.
 - Administrator management for authorised institution, faculty and department leaders, including controlled appointments across academic units.
-- Scoped administration that limits academic records, staff assignments, resource moderation and academic information reviews to authorised faculties and departments.
+- Scoped administration that limits academic records, staff assignments, resource uploads and moderation, and academic information reviews to authorised faculties and departments.
 - Scope-specific workspace names, navigation and page descriptions that reflect each administrator's assigned academic unit.
 
 Access to features depends on a member's account and assigned academic responsibilities.

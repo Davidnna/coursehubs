@@ -102,13 +102,30 @@ final class ResourceController
         }
 
         if (self::isAdmin($user)) {
-            $stmt = $db->query(
-                "SELECT c.id, c.current_code AS code, c.title, d.name AS department_name
-                 FROM courses c LEFT JOIN departments d ON d.id = c.department_id
+            $admin = Auth::requireAdministrator();
+            $courseScope = Auth::departmentScopeFilter($admin, 'c.department_id');
+            $offeringScope = Auth::departmentScopeFilter($admin, 'p.department_id');
+            $scopeSql = '(' . $courseScope['sql'] . ' OR ' . $offeringScope['sql'] . ')';
+            $stmt = $db->prepare(
+                "SELECT c.id, c.current_code AS code, c.title,
+                        COALESCE(MAX(d_course.name), MIN(d_offering.name)) AS department_name
+                 FROM courses c
+                 LEFT JOIN departments d_course ON d_course.id = c.department_id
+                 LEFT JOIN course_offerings co
+                    ON co.course_id = c.id AND co.deleted_at IS NULL
+                 LEFT JOIN programmes p ON p.id = co.programme_id
+                 LEFT JOIN departments d_offering ON d_offering.id = p.department_id
                  WHERE c.deleted_at IS NULL AND c.is_active IS TRUE AND c.status = 'active'
+                   AND {$scopeSql}
+                 GROUP BY c.id, c.current_code, c.title
                  ORDER BY c.current_code, c.title"
             );
-            Response::json(['courses' => $stmt->fetchAll(), 'scope' => 'administrator_catalogue', 'message' => null]);
+            $stmt->execute(array_merge($courseScope['params'], $offeringScope['params']));
+            Response::json([
+                'courses' => $stmt->fetchAll(),
+                'scope' => 'administrator_catalogue',
+                'message' => null,
+            ]);
         }
 
         // Non-administrator contributors only see courses connected to their
@@ -198,7 +215,16 @@ final class ResourceController
         $course->execute([$courseId]);
         if (!$course->fetchColumn()) Response::error('Choose an active course.', 422, ['fields' => ['course_id' => 'Choose an active course.']]);
 
-        if (!self::isAdmin($user) && !self::contributorCanUploadCourse($db, (int) $user['id'], $courseId, $sessionId)) {
+        if (self::isAdmin($user)) {
+            $admin = Auth::requireAdministrator();
+            if (!self::adminCanManageCourse($db, $admin, $courseId)) {
+                Response::error(
+                    'Choose a course within your administrative scope.',
+                    403,
+                    ['code' => 'ADMIN_SCOPE_ACCESS_REQUIRED']
+                );
+            }
+        } elseif (!self::contributorCanUploadCourse($db, (int) $user['id'], $courseId, $sessionId)) {
             Response::error(
                 'Choose a course connected to your current academic responsibilities.',
                 422,
@@ -625,7 +651,8 @@ final class ResourceController
         $id = self::positiveId($params['id'] ?? null);
         $action = trim((string) ($_GET['action'] ?? 'download'));
         if (!in_array($action, ['preview', 'download'], true)) $action = 'download';
-        $stmt = Database::connection()->prepare(
+        $db = Database::connection();
+        $stmt = $db->prepare(
             'SELECT id, uploader_id, title, original_filename, mime_type, storage_key, status
              FROM uploads WHERE id = ? AND deleted_at IS NULL LIMIT 1'
         );
@@ -633,7 +660,14 @@ final class ResourceController
         $resource = $stmt->fetch();
         if (!$resource) Response::error('The resource could not be found.', 404);
         $owner = (int) $resource['uploader_id'] === (int) $user['id'];
-        if ($resource['status'] !== 'approved' && !$owner && !self::isAdmin($user)) Response::error('The resource is not available.', 404);
+        $adminCanManage = false;
+        if (!$owner && self::isAdmin($user)) {
+            $admin = Auth::requireAdministrator();
+            $adminCanManage = self::canManageResource($db, $admin, $id);
+        }
+        if ($resource['status'] !== 'approved' && !$owner && !$adminCanManage) {
+            Response::error('The resource is not available.', 404);
+        }
         if ($action === 'preview' && $resource['mime_type'] !== 'application/pdf') Response::error('Preview is available for PDF documents only. Download this file to open it.', 422);
         if (!ObjectStorage::isConfigured()) Response::error('This resource is temporarily unavailable. Please try again later.', 503);
         try {
@@ -664,9 +698,15 @@ final class ResourceController
         $stmt->execute([$id]);
         $resource = $stmt->fetch();
         if (!$resource) Response::error('The resource could not be found.', 404);
-        $admin = self::isAdmin($user);
         $owner = (int) $resource['uploader_id'] === (int) $user['id'];
-        if (!$admin && (!$owner || $resource['status'] === 'approved')) Response::error('You do not have permission to remove this resource.', 403);
+        $adminCanManage = false;
+        if (self::isAdmin($user)) {
+            $admin = Auth::requireAdministrator();
+            $adminCanManage = self::canManageResource($db, $admin, $id);
+        }
+        if (!$adminCanManage && (!$owner || $resource['status'] === 'approved')) {
+            Response::error('You do not have permission to remove this resource.', 403);
+        }
         $db->prepare('UPDATE uploads SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$id]);
         if (ObjectStorage::isConfigured() && !empty($resource['storage_key'])) {
             try { ObjectStorage::delete((string) $resource['storage_key']); }
@@ -764,6 +804,50 @@ final class ResourceController
         );
         $stmt->execute([$userId, $courseId]);
         return filter_var($stmt->fetchColumn(), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    private static function adminCanManageCourse(PDO $db, array $admin, int $courseId): bool
+    {
+        $courseScope = Auth::departmentScopeFilter($admin, 'c.department_id');
+        $offeringScope = Auth::departmentScopeFilter($admin, 'p.department_id');
+        $scopeSql = '(' . $courseScope['sql'] . ' OR ' . $offeringScope['sql'] . ')';
+        $stmt = $db->prepare(
+            "SELECT EXISTS (
+                SELECT 1
+                FROM courses c
+                LEFT JOIN course_offerings co
+                    ON co.course_id = c.id AND co.deleted_at IS NULL
+                LEFT JOIN programmes p ON p.id = co.programme_id
+                WHERE c.id = ? AND c.deleted_at IS NULL
+                  AND c.is_active IS TRUE AND c.status = 'active'
+                  AND {$scopeSql}
+            )"
+        );
+        $stmt->execute(array_merge([$courseId], $courseScope['params'], $offeringScope['params']));
+        return filter_var($stmt->fetchColumn(), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    private static function canManageResource(PDO $db, array $admin, int $resourceId): bool
+    {
+        $stmt = $db->prepare(
+            'SELECT c.department_id
+             FROM uploads u
+             JOIN courses c ON c.id = u.course_id
+             WHERE u.id = ? AND u.deleted_at IS NULL AND c.deleted_at IS NULL
+             LIMIT 1'
+        );
+        $stmt->execute([$resourceId]);
+        $departmentId = $stmt->fetchColumn();
+
+        if ($departmentId === false) {
+            return false;
+        }
+
+        if ($departmentId === null) {
+            return Auth::hasInstitutionScope($admin);
+        }
+
+        return Auth::canManageDepartment($admin, (int) $departmentId);
     }
 
     private static function isAdmin(array $user): bool

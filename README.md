@@ -114,6 +114,13 @@ To test administrator features against a fresh local database, first register an
 
 ## Automated backups (maintainers)
 
+### Test database recovery safely
+
+The manually triggered `CourseHubs database recovery test` workflow restores the latest database snapshot into a separate Neon database named `coursehubs_recovery`. It requires the `COURSEHUBS_RECOVERY_DATABASE_URL` repository secret and an explicit confirmation checkbox. The workflow verifies that the destination is in a different Neon project from production, uses a direct connection, and is empty before restoring. It never targets the production database.
+
+After a successful recovery test, inspect the GitHub Actions summary and verify expected CourseHubs tables. Keep the recovery database until the test has been reviewed; delete it only when it is no longer needed. Do not share connection strings or workflow logs containing credentials.
+
+
 CourseHubs supports scheduled, encrypted backups using GitHub Actions and a separate private Neon Object Storage bucket. The backup workflow does not run inside the production application and does not change production data.
 
 ### Backup schedule and retention
@@ -150,6 +157,7 @@ Add the following repository secrets under **Settings → Secrets and variables 
 | `COURSEHUBS_BACKUP_S3_REGION` | Backup storage region, normally `us-east-2` |
 | `COURSEHUBS_BACKUP_S3_BUCKET` | Private backup bucket, currently `coursehubs-backups` |
 | `COURSEHUBS_RESTIC_PASSWORD` | Strong, unique encryption password for the backup repository |
+| `COURSEHUBS_RECOVERY_DATABASE_URL` | Direct connection string for the separate, empty `coursehubs_recovery` database used only for non-production recovery tests |
 
 Create separate storage credentials for the production source and backup destination. The source credential should only read/list the production resource bucket. The destination credential must be able to list, read, write and delete objects in the private backup bucket so retention pruning can operate. Use the endpoint and region shown for the relevant branch in Neon's Storage connection settings.
 

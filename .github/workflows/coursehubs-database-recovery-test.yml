@@ -1,0 +1,153 @@
+name: CourseHubs database recovery test
+
+on:
+    workflow_dispatch:
+        inputs:
+            confirm_recovery_database:
+                description: Confirm that coursehubs_recovery is a new, empty database in the separate backup Neon project
+                required: true
+                type: boolean
+                default: false
+
+permissions:
+    contents: read
+
+concurrency:
+    group: coursehubs-database-recovery-test
+    cancel-in-progress: false
+
+jobs:
+    restore-test:
+        name: Restore the latest database backup into the recovery database
+        if: ${{ inputs.confirm_recovery_database }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 120
+        env:
+            RESTORE_DATABASE_URL: ${{ secrets.COURSEHUBS_RECOVERY_DATABASE_URL }}
+            PRODUCTION_DATABASE_URL: ${{ secrets.COURSEHUBS_BACKUP_DATABASE_URL }}
+            RESTORE_CONFIRM: ${{ inputs.confirm_recovery_database && 'RESTORE_TO_EMPTY_DATABASE' || '' }}
+            RESTIC_PASSWORD: ${{ secrets.COURSEHUBS_RESTIC_PASSWORD }}
+            RESTIC_HOST: coursehubs-production
+            BACKUP_S3_ENDPOINT: ${{ secrets.COURSEHUBS_BACKUP_S3_ENDPOINT }}
+            BACKUP_S3_BUCKET: ${{ secrets.COURSEHUBS_BACKUP_S3_BUCKET }}
+            AWS_ACCESS_KEY_ID: ${{ secrets.COURSEHUBS_BACKUP_S3_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.COURSEHUBS_BACKUP_S3_SECRET_ACCESS_KEY }}
+            AWS_DEFAULT_REGION: ${{ secrets.COURSEHUBS_BACKUP_S3_REGION }}
+
+        steps:
+            - name: Check out the default branch
+              uses: actions/checkout@v4
+
+            - name: Validate recovery destination and credentials
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  required=(
+                      RESTORE_DATABASE_URL
+                      PRODUCTION_DATABASE_URL
+                      RESTORE_CONFIRM
+                      RESTIC_PASSWORD
+                      BACKUP_S3_ENDPOINT
+                      BACKUP_S3_BUCKET
+                      AWS_ACCESS_KEY_ID
+                      AWS_SECRET_ACCESS_KEY
+                      AWS_DEFAULT_REGION
+                  )
+                  for name in "${required[@]}"; do
+                      if [[ -z "${!name:-}" ]]; then
+                          printf 'Missing required GitHub Actions secret/configuration: %s\n' "$name" >&2
+                          exit 1
+                      fi
+                  done
+                  if [[ "$RESTORE_CONFIRM" != 'RESTORE_TO_EMPTY_DATABASE' ]]; then
+                      printf '%s\n' 'Recovery was not explicitly confirmed.' >&2
+                      exit 1
+                  fi
+                  if [[ "$RESTORE_DATABASE_URL" == *'-pooler.'* || "$PRODUCTION_DATABASE_URL" == *'-pooler.'* ]]; then
+                      printf '%s\n' 'Use direct, unpooled Neon connection strings for database recovery.' >&2
+                      exit 1
+                  fi
+                  python3 - <<'PY'
+                  import os
+                  from urllib.parse import unquote, urlsplit
+
+                  target = urlsplit(os.environ['RESTORE_DATABASE_URL'])
+                  production = urlsplit(os.environ['PRODUCTION_DATABASE_URL'])
+                  target_database = unquote(target.path.lstrip('/'))
+                  if not target.hostname or not production.hostname:
+                      raise SystemExit('A database connection string is invalid.')
+                  if target_database != 'coursehubs_recovery':
+                      raise SystemExit('The recovery destination must be the coursehubs_recovery database.')
+                  if target.hostname.lower() == production.hostname.lower():
+                      raise SystemExit('The recovery database must be in a separate Neon project from production.')
+                  print('Recovery destination checks passed; connection details are not displayed.')
+                  PY
+
+            - name: Install Restic
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  sudo apt-get update
+                  sudo apt-get install -y restic
+                  printf 'RESTIC_REPOSITORY=s3:%s/%s/coursehubs-restic\n' \
+                      "${BACKUP_S3_ENDPOINT%/}" "$BACKUP_S3_BUCKET" >> "$GITHUB_ENV"
+
+            - name: Confirm that a database backup is available
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  restic -o "s3.region=$AWS_DEFAULT_REGION" -o 's3.bucket-lookup=path' \
+                      snapshots --json --tag database --host "$RESTIC_HOST" > "$RUNNER_TEMP/database-snapshots.json"
+                  python3 - "$RUNNER_TEMP/database-snapshots.json" <<'PY'
+                  import json
+                  import sys
+                  with open(sys.argv[1], encoding='utf-8') as source:
+                      snapshots = json.load(source)
+                  if not snapshots:
+                      raise SystemExit('No database backup snapshot is available.')
+                  latest = max(snapshots, key=lambda item: item['time'])
+                  print(f"Found {len(snapshots)} database snapshot(s). Latest: {latest['time']} UTC.")
+                  PY
+
+            - name: Restore latest backup into the empty recovery database
+              shell: bash
+              run: bash scripts/backup/restore_database.sh
+
+            - name: Verify restored database tables
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  docker run --rm -e RESTORE_DATABASE_URL postgres:18-alpine sh -euc '
+                      count="$(psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc \
+                          "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '\''public'\'' AND table_type = '\''BASE TABLE'\''")"
+                      if [ "$count" -lt 1 ]; then
+                          printf "%s\\n" "No application tables were found after recovery." >&2
+                          exit 1
+                      fi
+                      printf "Recovered public tables: %s\\n" "$count"
+                  '
+
+            - name: Publish recovery test summary
+              if: success()
+              shell: bash
+              run: |
+                  {
+                      echo '## CourseHubs database recovery test passed'
+                      echo
+                      echo '- The latest encrypted database backup was restored into the separate `coursehubs_recovery` database.'
+                      echo '- The destination was verified to be empty before restoration.'
+                      echo '- The restored database contains application tables.'
+                      echo '- The production database was not modified.'
+                  } >> "$GITHUB_STEP_SUMMARY"
+
+            - name: Record recovery test failure
+              if: failure()
+              shell: bash
+              run: |
+                  {
+                      echo '## CourseHubs database recovery test failed'
+                      echo
+                      echo '- Review the failed step before retrying.'
+                      echo '- The workflow is configured to restore only into `coursehubs_recovery` in the separate backup Neon project.'
+                      echo '- The production database is not a restore target.'
+                  } >> "$GITHUB_STEP_SUMMARY"

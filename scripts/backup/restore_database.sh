@@ -67,11 +67,36 @@ if [[ -z "$dump_file" || ! -s "$dump_file" ]]; then
     exit 1
 fi
 
-printf '%s\n' 'Checking that the recovery database has no application tables.'
+printf '%s\n' 'Checking that the recovery database has no existing application objects.'
 docker run --rm \
     -e RESTORE_DATABASE_URL \
     postgres:18-alpine \
-    sh -euc 'count="$(psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "SELECT COUNT(*) FROM pg_tables WHERE schemaname = current_schema()")"; test "$count" = "0"'
+    sh -euc '
+        count="$(psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "
+            SELECT
+                (SELECT COUNT(*) FROM pg_class c
+                 JOIN pg_namespace n ON n.oid = c.relnamespace
+                 WHERE n.nspname = current_schema()
+                   AND ASCII(c.relkind) IN (114, 112, 118, 109, 83, 102))
+                + (SELECT COUNT(*) FROM pg_proc p
+                   JOIN pg_namespace n ON n.oid = p.pronamespace
+                   WHERE n.nspname = current_schema())
+                + (SELECT COUNT(*) FROM pg_type t
+                   JOIN pg_namespace n ON n.oid = t.typnamespace
+                   WHERE n.nspname = current_schema()
+                     AND ASCII(t.typtype) IN (99, 100, 101, 114))
+        ")"
+        if [ "$count" != "0" ]; then
+            printf "%s\n" "The recovery database is not empty. No data was restored." >&2
+            exit 1
+        fi
+    '
+
+printf '%s\n' 'Validating the encrypted PostgreSQL archive.'
+docker run --rm \
+    -v "$dump_file:/backup/database.dump:ro" \
+    postgres:18-alpine \
+    sh -euc 'pg_restore --list /backup/database.dump >/dev/null'
 
 printf '%s\n' "Restoring database snapshot ${snapshot_id} into the confirmed empty target."
 docker run --rm \

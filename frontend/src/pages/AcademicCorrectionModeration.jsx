@@ -22,6 +22,9 @@ function StatusPill({ status }) {
 }
 
 export default function AcademicCorrectionModeration() {
+    const { user } = useAuth();
+    const workspaceContext = getAdminWorkspaceContext(user);
+
     const [status, setStatus] = useState('pending');
     const [requests, setRequests] = useState([]);
     const [departments, setDepartments] = useState([]);

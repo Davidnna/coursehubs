@@ -228,16 +228,29 @@ final class AccountController
         }
 
         $db = Database::connection();
-        $stmt = $db->prepare('SELECT id, account_type, reg_no, staff_no, CASE WHEN is_super_admin IS TRUE THEN 1 ELSE 0 END AS is_super_admin, password_hash FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+        $stmt = $db->prepare(
+            'SELECT id, account_type, reg_no, staff_no,
+                    CASE WHEN is_admin IS TRUE THEN 1 ELSE 0 END AS is_admin,
+                    CASE WHEN is_super_admin IS TRUE THEN 1 ELSE 0 END AS is_super_admin,
+                    password_hash
+             FROM users
+             WHERE id = ? AND deleted_at IS NULL
+             LIMIT 1'
+        );
         $stmt->execute([(int) $sessionUser['id']]);
         $user = $stmt->fetch();
         if (!$user) Response::error('Your account could not be found.', 404);
-        $hasSuperAdminScope = array_filter(
-            Auth::scopesFor((int) $user['id']),
-            static fn (array $scope): bool => $scope['role'] === 'super_admin'
-        ) !== [];
-        if (filter_var($user['is_super_admin'], FILTER_VALIDATE_BOOLEAN) || $hasSuperAdminScope) {
-            Response::error('An account with Super Administrator responsibilities cannot be deleted from its own session. Ask another authorised administrator to update those appointments first.', 403);
+        $administratorScopes = Auth::scopesFor((int) $user['id']);
+        $hasAdministratorResponsibilities = filter_var($user['is_admin'], FILTER_VALIDATE_BOOLEAN)
+            || filter_var($user['is_super_admin'], FILTER_VALIDATE_BOOLEAN)
+            || $administratorScopes !== [];
+
+        if ($hasAdministratorResponsibilities) {
+            Response::error(
+                'An account with active administrator responsibilities cannot be deleted from its own session. Ask another authorised administrator to revoke its appointments first.',
+                403,
+                ['code' => 'ADMINISTRATOR_ACCOUNT_DELETION_RESTRICTED']
+            );
         }
         if (!password_verify((string) ($body['current_password'] ?? ''), (string) $user['password_hash'])) {
             Response::error('Your current password is incorrect.', 403, ['code' => 'CURRENT_PASSWORD_INVALID']);
@@ -323,6 +336,7 @@ final class AccountController
             'is_admin' => filter_var($user['is_admin'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'is_super_admin' => filter_var($user['is_super_admin'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'is_verified' => filter_var($user['is_verified'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'admin_scopes' => Auth::scopesFor((int) $user['id']),
             'profile_picture_data' => $user['profile_picture_data'] ?? null,
         ];
     }

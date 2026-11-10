@@ -59,7 +59,8 @@ async function compressPhoto(file) {
 }
 
 function Notice({ kind = 'success', children }) {
-    return <div className={`account-notice account-notice-${kind}`} role={kind === 'error' ? 'alert' : 'status'}><Icon name={kind === 'error' ? 'alert' : 'checkCircle'} size={18} /><span>{children}</span></div>;
+    const icon = kind === 'error' ? 'alert' : kind === 'info' ? 'info' : 'checkCircle';
+    return <div className={`account-notice account-notice-${kind}`} role={kind === 'error' ? 'alert' : 'status'}><Icon name={icon} size={18} /><span>{children}</span></div>;
 }
 
 export default function Account() {
@@ -72,6 +73,7 @@ export default function Account() {
     const [profile, setProfile] = useState({ first_name: user?.first_name || '', surname: user?.surname || '', middle_name: user?.middle_name || '', phone: user?.phone || '' });
     const [photoData, setPhotoData] = useState(user?.profile_picture_data || null);
     const [googleConnected, setGoogleConnected] = useState(false);
+    const [hasPassword, setHasPassword] = useState(true);
     const [profileBusy, setProfileBusy] = useState(false);
     const [profileNotice, setProfileNotice] = useState(null);
     const [emailForm, setEmailForm] = useState({ new_email: '', current_password: '' });
@@ -92,6 +94,7 @@ export default function Account() {
             setProfile({ first_name: result.user.first_name || '', surname: result.user.surname || '', middle_name: result.user.middle_name || '', phone: result.user.phone || '' });
             setPhotoData(result.user.profile_picture_data || null);
             setGoogleConnected(result.google_connected === true);
+            setHasPassword(result.has_password === true);
             updateUser(result.user);
         }).catch((error) => {
             if (active) setProfileNotice({ kind: 'error', message: error.message || 'We could not load your account details.' });
@@ -161,6 +164,7 @@ export default function Account() {
             replaceSession(result.token, result.user);
             setAccount(result.user);
             setPasswordForm({ current_password: '', new_password: '', confirm_password: '' });
+            setHasPassword(true);
             setPasswordNotice({ kind: 'success', message: 'Password changed. This device remains signed in; other sessions have been signed out.' });
         } catch (error) {
             setPasswordNotice({ kind: 'error', message: error.message || 'We could not change your password.' });
@@ -183,6 +187,11 @@ export default function Account() {
     if (loading) return <main className="account-page"><div className="account-loading" role="status"><span className="loading-spinner" /> Loading your account…</div></main>;
 
     const displayName = `${account?.first_name || user?.first_name || ''} ${account?.surname || user?.surname || ''}`.trim();
+    const hasAdministratorResponsibilities = Boolean(
+        account?.is_admin
+        || account?.is_super_admin
+        || account?.admin_scopes?.length
+    );
 
     return (
         <main className="account-page">
@@ -224,21 +233,33 @@ export default function Account() {
                         <div className="account-card-heading"><div><span className="account-section-kicker">EMAIL ADDRESS</span><h2 id="account-email-heading">Change email address</h2><p>Your new email address must be verified before it replaces the current one.</p></div><span className="account-card-icon"><Icon name="mail" size={20} /></span></div>
                         <div className="account-current-email"><span>Current email</span><strong>{account?.email}</strong><span className="account-current-status"><Icon name="checkCircle" size={14} /> Verified</span></div>
                         {emailNotice && <Notice kind={emailNotice.kind}>{emailNotice.message}</Notice>}
-                        <form onSubmit={submitEmailChange} className="account-form">
-                            <div className="field"><label htmlFor="account-new-email">New email address</label><input id="account-new-email" type="email" autoComplete="email" required placeholder="name@example.com" value={emailForm.new_email} onChange={(event) => setEmailForm((current) => ({ ...current, new_email: event.target.value }))} /></div>
-                            <div className="field"><label htmlFor="account-email-password">Confirm with your current password</label><input id="account-email-password" type="password" autoComplete="current-password" required value={emailForm.current_password} onChange={(event) => setEmailForm((current) => ({ ...current, current_password: event.target.value }))} /></div>
-                            <div className="account-form-actions"><button className="btn btn-outline" type="submit" disabled={emailBusy}>{emailBusy ? 'Sending confirmation…' : 'Send confirmation link'} <Icon name="arrowRight" size={17} /></button></div>
-                        </form>
+                        {hasPassword ? (
+                            <form onSubmit={submitEmailChange} className="account-form">
+                                <div className="field"><label htmlFor="account-new-email">New email address</label><input id="account-new-email" type="email" autoComplete="email" required placeholder="name@example.com" value={emailForm.new_email} onChange={(event) => setEmailForm((current) => ({ ...current, new_email: event.target.value }))} /></div>
+                                <div className="field"><label htmlFor="account-email-password">Confirm with your current password</label><input id="account-email-password" type="password" autoComplete="current-password" required value={emailForm.current_password} onChange={(event) => setEmailForm((current) => ({ ...current, current_password: event.target.value }))} /></div>
+                                <div className="account-form-actions"><button className="btn btn-outline" type="submit" disabled={emailBusy}>{emailBusy ? 'Sending confirmation…' : 'Send confirmation link'} <Icon name="arrowRight" size={17} /></button></div>
+                            </form>
+                        ) : (
+                            <Notice kind="info">
+                                Set a password first to change your email address. <Link to="/forgot-password">Set a password</Link>
+                            </Notice>
+                        )}
                     </section>
 
                     <section className="account-card" aria-labelledby="account-security-heading">
-                        <div className="account-card-heading"><div><span className="account-section-kicker">ACCOUNT SECURITY</span><h2 id="account-security-heading">Change password</h2><p>Use a strong password that you do not use elsewhere.</p></div><span className="account-card-icon"><Icon name="lock" size={20} /></span></div>
+                        <div className="account-card-heading"><div><span className="account-section-kicker">ACCOUNT SECURITY</span><h2 id="account-security-heading">{hasPassword ? 'Change password' : 'Set a password'}</h2><p>{hasPassword ? 'Use a strong password that you do not use elsewhere.' : 'Your account currently uses Google sign-in. You can also create a password for email and password sign-in.'}</p></div><span className="account-card-icon"><Icon name="lock" size={20} /></span></div>
                         {passwordNotice && <Notice kind={passwordNotice.kind}>{passwordNotice.message}</Notice>}
-                        <form onSubmit={submitPasswordChange} className="account-form">
-                            <div className="field"><label htmlFor="account-current-password">Current password</label><input id="account-current-password" type="password" autoComplete="current-password" required value={passwordForm.current_password} onChange={(event) => setPasswordForm((current) => ({ ...current, current_password: event.target.value }))} /></div>
-                            <div className="account-form-grid"><div className="field"><label htmlFor="account-new-password">New password</label><input id="account-new-password" type="password" autoComplete="new-password" minLength={8} maxLength={72} required value={passwordForm.new_password} onChange={(event) => setPasswordForm((current) => ({ ...current, new_password: event.target.value }))} /></div><div className="field"><label htmlFor="account-confirm-password">Confirm new password</label><input id="account-confirm-password" type="password" autoComplete="new-password" minLength={8} maxLength={72} required value={passwordForm.confirm_password} onChange={(event) => setPasswordForm((current) => ({ ...current, confirm_password: event.target.value }))} /></div></div>
-                            <div className="account-form-actions"><button className="btn btn-outline" type="submit" disabled={passwordBusy}>{passwordBusy ? 'Updating password…' : 'Update password'} <Icon name="shield" size={17} /></button></div>
-                        </form>
+                        {hasPassword ? (
+                            <form onSubmit={submitPasswordChange} className="account-form">
+                                <div className="field"><label htmlFor="account-current-password">Current password</label><input id="account-current-password" type="password" autoComplete="current-password" required value={passwordForm.current_password} onChange={(event) => setPasswordForm((current) => ({ ...current, current_password: event.target.value }))} /></div>
+                                <div className="account-form-grid"><div className="field"><label htmlFor="account-new-password">New password</label><input id="account-new-password" type="password" autoComplete="new-password" minLength={8} maxLength={72} required value={passwordForm.new_password} onChange={(event) => setPasswordForm((current) => ({ ...current, new_password: event.target.value }))} /></div><div className="field"><label htmlFor="account-confirm-password">Confirm new password</label><input id="account-confirm-password" type="password" autoComplete="new-password" minLength={8} maxLength={72} required value={passwordForm.confirm_password} onChange={(event) => setPasswordForm((current) => ({ ...current, confirm_password: event.target.value }))} /></div></div>
+                                <div className="account-form-actions"><button className="btn btn-outline" type="submit" disabled={passwordBusy}>{passwordBusy ? 'Updating password…' : 'Update password'} <Icon name="shield" size={17} /></button></div>
+                            </form>
+                        ) : (
+                            <Notice kind="info">
+                                To create a password, use the password recovery link sent to your verified CourseHubs email address. <Link to="/forgot-password">Set a password</Link>
+                            </Notice>
+                        )}
                     </section>
 
                     <section className="account-card" aria-labelledby="account-google-heading">
@@ -249,13 +270,22 @@ export default function Account() {
 
                     <section className="account-card account-danger-card" aria-labelledby="account-delete-heading">
                         <div className="account-card-heading"><div><span className="account-section-kicker account-danger-kicker">PERMANENT ACTION</span><h2 id="account-delete-heading">Delete account</h2><p>Delete your CourseHubs access and remove personal profile details. This action cannot be undone.</p></div><span className="account-card-icon account-danger-icon"><Icon name="alert" size={20} /></span></div>
-                        {(account?.is_super_admin || account?.admin_scopes?.some((scope) => scope.role === 'super_admin')) && <Notice kind="error">Accounts with Super Administrator responsibilities cannot be deleted from their own session. Ask another authorised administrator to update those appointments first.</Notice>}
-                        {deleteNotice && <Notice kind="error">{deleteNotice.message}</Notice>}
-                        <form onSubmit={submitDeleteAccount} className="account-form">
-                            <div className="field"><label htmlFor="account-delete-password">Current password</label><input id="account-delete-password" type="password" autoComplete="current-password" required value={deleteForm.current_password} onChange={(event) => setDeleteForm((current) => ({ ...current, current_password: event.target.value }))} /></div>
-                            <div className="field"><label htmlFor="account-delete-confirm">Type DELETE to confirm</label><input id="account-delete-confirm" autoComplete="off" required value={deleteForm.confirmation} onChange={(event) => setDeleteForm((current) => ({ ...current, confirmation: event.target.value }))} /></div>
-                            <div className="account-form-actions"><button className="btn btn-danger" type="submit" disabled={deleteBusy || deleteForm.confirmation !== 'DELETE' || (account?.is_super_admin || account?.admin_scopes?.some((scope) => scope.role === 'super_admin'))}>{deleteBusy ? 'Deleting account…' : 'Delete my account'} <Icon name="trash" size={17} /></button></div>
-                        </form>
+                        {hasAdministratorResponsibilities ? (
+                            <Notice kind="error">Accounts with active administrator responsibilities cannot be deleted from their own session. Ask another authorised administrator to revoke all appointments first.</Notice>
+                        ) : !hasPassword ? (
+                            <Notice kind="info">
+                                Set a password first to confirm account deletion. <Link to="/forgot-password">Set a password</Link>
+                            </Notice>
+                        ) : (
+                            <>
+                                {deleteNotice && <Notice kind="error">{deleteNotice.message}</Notice>}
+                                <form onSubmit={submitDeleteAccount} className="account-form">
+                                    <div className="field"><label htmlFor="account-delete-password">Current password</label><input id="account-delete-password" type="password" autoComplete="current-password" required value={deleteForm.current_password} onChange={(event) => setDeleteForm((current) => ({ ...current, current_password: event.target.value }))} /></div>
+                                    <div className="field"><label htmlFor="account-delete-confirm">Type DELETE to confirm</label><input id="account-delete-confirm" autoComplete="off" required value={deleteForm.confirmation} onChange={(event) => setDeleteForm((current) => ({ ...current, confirmation: event.target.value }))} /></div>
+                                    <div className="account-form-actions"><button className="btn btn-danger" type="submit" disabled={deleteBusy || deleteForm.confirmation !== 'DELETE'}>{deleteBusy ? 'Deleting account…' : 'Delete my account'} <Icon name="trash" size={17} /></button></div>
+                                </form>
+                            </>
+                        )}
                     </section>
                 </div>
 

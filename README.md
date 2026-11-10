@@ -9,7 +9,7 @@ CourseHubs helps students find academic materials organised around their courses
 The application includes:
 
 - Public home, about, features, help, contact, privacy and terms pages.
-- Student and staff accounts, email verification, sign-in and account management.
+- Student and staff accounts, email verification, sign-in and account management, including password setup for Google-only accounts and protection against self-deletion while administrator appointments remain active.
 - Google sign-in for registered accounts.
 - An academic directory covering faculties, departments, degree programmes, courses and academic sessions.
 - Course information organised by degree programme, level, semester and session.

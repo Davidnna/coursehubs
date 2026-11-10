@@ -306,6 +306,17 @@
     background: #fff5f4;
     color: #a13535;
 }
+.account-notice-info {
+    border-color: #d9e3f2;
+    background: #f5f8fc;
+    color: #38516f;
+}
+.account-notice a {
+    color: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
 .account-current-email {
     display: flex;
     align-items: center;

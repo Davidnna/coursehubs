@@ -15,6 +15,7 @@ $genericServerError = static function (): void {
 
     http_response_code(500);
     header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store, private');
     echo json_encode(['error' => 'Something went wrong on our end. Please try again shortly.']);
 };
 
@@ -71,7 +72,6 @@ require __DIR__ . '/../src/Controllers/ResourceController.php';
 Config::load(__DIR__ . '/../.env');
 
 // API responses must not be framed, MIME-sniffed or cached by shared clients.
-// HTTPS transport policy should be configured at the public hosting edge.
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('X-Permitted-Cross-Domain-Policies: none');

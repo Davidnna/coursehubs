@@ -1,0 +1,177 @@
+name: CourseHubs backups
+
+on:
+    schedule:
+        - cron: '17 2 * * *'
+    workflow_dispatch:
+        inputs:
+            initialize_repository:
+                description: Initialize the encrypted backup repository (run only once)
+                required: false
+                type: boolean
+                default: false
+            force_full_resources:
+                description: Create a complete resource snapshot during this run
+                required: false
+                type: boolean
+                default: false
+
+permissions:
+    contents: read
+
+concurrency:
+    group: coursehubs-backup
+    cancel-in-progress: false
+
+jobs:
+    backup:
+        name: Back up CourseHubs production data
+        runs-on: ubuntu-latest
+        timeout-minutes: 120
+        env:
+            DATABASE_URL: ${{ secrets.COURSEHUBS_BACKUP_DATABASE_URL }}
+            SOURCE_S3_ENDPOINT: ${{ secrets.COURSEHUBS_SOURCE_S3_ENDPOINT }}
+            SOURCE_S3_ACCESS_KEY_ID: ${{ secrets.COURSEHUBS_SOURCE_S3_ACCESS_KEY_ID }}
+            SOURCE_S3_SECRET_ACCESS_KEY: ${{ secrets.COURSEHUBS_SOURCE_S3_SECRET_ACCESS_KEY }}
+            SOURCE_S3_REGION: ${{ secrets.COURSEHUBS_SOURCE_S3_REGION }}
+            SOURCE_S3_BUCKET: ${{ secrets.COURSEHUBS_SOURCE_S3_BUCKET }}
+            BACKUP_S3_ENDPOINT: ${{ secrets.COURSEHUBS_BACKUP_S3_ENDPOINT }}
+            BACKUP_S3_BUCKET: ${{ secrets.COURSEHUBS_BACKUP_S3_BUCKET }}
+            BACKUP_S3_REGION: ${{ secrets.COURSEHUBS_BACKUP_S3_REGION }}
+            AWS_ACCESS_KEY_ID: ${{ secrets.COURSEHUBS_BACKUP_S3_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.COURSEHUBS_BACKUP_S3_SECRET_ACCESS_KEY }}
+            AWS_DEFAULT_REGION: ${{ secrets.COURSEHUBS_BACKUP_S3_REGION }}
+            RESTIC_PASSWORD: ${{ secrets.COURSEHUBS_RESTIC_PASSWORD }}
+            RESTIC_HOST: coursehubs-production
+            BACKUP_STAGING_DIR: ${{ github.workspace }}/.backup-staging
+            MAX_BACKUP_BUCKET_BYTES: 4500000000
+            FORCE_FULL_RESOURCES: ${{ inputs.force_full_resources }}
+
+        steps:
+            - name: Check out the default branch
+              uses: actions/checkout@v4
+
+            - name: Validate backup settings
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  required=(
+                      DATABASE_URL
+                      SOURCE_S3_ENDPOINT
+                      SOURCE_S3_ACCESS_KEY_ID
+                      SOURCE_S3_SECRET_ACCESS_KEY
+                      SOURCE_S3_REGION
+                      SOURCE_S3_BUCKET
+                      BACKUP_S3_ENDPOINT
+                      BACKUP_S3_BUCKET
+                      BACKUP_S3_REGION
+                      AWS_ACCESS_KEY_ID
+                      AWS_SECRET_ACCESS_KEY
+                      RESTIC_PASSWORD
+                  )
+                  for name in "${required[@]}"; do
+                      if [[ -z "${!name:-}" ]]; then
+                          printf 'Missing required GitHub Actions secret/configuration: %s\n' "$name" >&2
+                          exit 1
+                      fi
+                  done
+                  if [[ "$DATABASE_URL" == *"-pooler."* ]]; then
+                      printf '%s\n' 'Use the direct, unpooled Neon connection string for database backups.' >&2
+                      exit 1
+                  fi
+                  if [[ "${SOURCE_S3_ENDPOINT%/}" == "${BACKUP_S3_ENDPOINT%/}" ]]; then
+                      printf '%s\n' 'Production and backup storage endpoints must belong to separate Neon projects.' >&2
+                      exit 1
+                  fi
+
+            - name: Configure encrypted backup repository
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  printf 'RESTIC_REPOSITORY=s3:%s/%s/coursehubs-restic\n' \
+                      "${BACKUP_S3_ENDPOINT%/}" "$BACKUP_S3_BUCKET" >> "$GITHUB_ENV"
+
+            - name: Install backup tools
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  sudo apt-get update
+                  sudo apt-get install -y restic
+                  python3 -m venv "$RUNNER_TEMP/coursehubs-backup-venv"
+                  "$RUNNER_TEMP/coursehubs-backup-venv/bin/pip" install --disable-pip-version-check -r scripts/backup/requirements.txt
+                  echo "$RUNNER_TEMP/coursehubs-backup-venv/bin" >> "$GITHUB_PATH"
+
+            - name: Prepare private staging directory
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  mkdir -p "$BACKUP_STAGING_DIR/database"
+                  chmod 700 "$BACKUP_STAGING_DIR"
+
+            - name: Initialize encrypted backup repository
+              if: ${{ github.event_name == 'workflow_dispatch' && inputs.initialize_repository }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  restic -o "s3.region=$BACKUP_S3_REGION" -o 's3.bucket-lookup=path' init
+
+            - name: Create encrypted PostgreSQL dump
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  docker run --rm \
+                      -e DATABASE_URL \
+                      -e PGCONNECT_TIMEOUT=30 \
+                      -v "$BACKUP_STAGING_DIR/database:/backup" \
+                      postgres:18-alpine \
+                      sh -euc 'pg_dump --dbname="$DATABASE_URL" --format=custom --compress=9 --no-owner --no-acl --file=/backup/database.dump'
+                  test -s "$BACKUP_STAGING_DIR/database/database.dump"
+
+            - name: Prepare and store full or incremental resource backup
+              shell: bash
+              run: python scripts/backup/backup_resources.py
+
+            - name: Store database backup
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  restic -o "s3.region=$BACKUP_S3_REGION" -o 's3.bucket-lookup=path' \
+                      backup --host "$RESTIC_HOST" --tag database "$BACKUP_STAGING_DIR/database"
+
+            - name: Apply backup retention and verify repository
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  restic -o "s3.region=$BACKUP_S3_REGION" -o 's3.bucket-lookup=path' \
+                      forget --group-by host,paths --tag database --keep-daily 7 --keep-weekly 4
+                  restic -o "s3.region=$BACKUP_S3_REGION" -o 's3.bucket-lookup=path' \
+                      forget --group-by host,paths --tag resource-delta --keep-daily 7
+                  restic -o "s3.region=$BACKUP_S3_REGION" -o 's3.bucket-lookup=path' \
+                      forget --group-by host,paths --tag resource-full --keep-weekly 4
+                  restic -o "s3.region=$BACKUP_S3_REGION" -o 's3.bucket-lookup=path' prune
+                  restic -o "s3.region=$BACKUP_S3_REGION" -o 's3.bucket-lookup=path' check
+
+            - name: Publish backup summary
+              if: success()
+              shell: bash
+              run: |
+                  {
+                      echo '## CourseHubs backup completed'
+                      echo
+                      echo "- Completed at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+                      echo '- Database: daily encrypted snapshot'
+                      echo '- Resources: daily incremental snapshot; full snapshot every Sunday'
+                      echo '- Retention: seven daily and four weekly database recovery points; seven daily resource deltas and four weekly full resource snapshots'
+                      echo '- Repository integrity check: passed'
+                  } >> "$GITHUB_STEP_SUMMARY"
+
+            - name: Record backup failure
+              if: failure()
+              shell: bash
+              run: |
+                  {
+                      echo '## CourseHubs backup failed'
+                      echo
+                      echo 'The backup did not complete. Review this workflow run before attempting a restore.'
+                      echo 'Production data was not modified by this workflow.'
+                  } >> "$GITHUB_STEP_SUMMARY"

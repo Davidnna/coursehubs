@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Icon from '../components/Icon';
+import { useAuth } from '../auth/AuthContext';
+import { getAdminWorkspaceContext } from '../auth/permissions';
 import '../academic.css';
 import './staff-management.css';
 import {
@@ -41,6 +43,9 @@ function EmptyState({ icon = 'users', title, detail }) {
 }
 
 export default function StaffManagement() {
+    const { user } = useAuth();
+    const workspaceContext = getAdminWorkspaceContext(user);
+    const departmentOnly = workspaceContext?.scopeType === 'department';
     const [activeTab, setActiveTab] = useState('directory');
     const [data, setData] = useState({
         staff: [], programmes: [], sessions: [], offerings: [],
@@ -221,12 +226,12 @@ export default function StaffManagement() {
     }
 
     return <main className="standard-page staff-management-page">
-        <div className="breadcrumb"><span>Administrator workspace</span><Icon name="chevronRight" size={14} />Staff & contributors</div>
+        <div className="breadcrumb"><span>{workspaceContext ? `${workspaceContext.shortLabel} workspace` : 'Administrator workspace'}</span><Icon name="chevronRight" size={14} />{workspaceContext?.scopeType === 'department' ? 'Department staff' : workspaceContext?.scopeType === 'faculty' ? 'Faculty staff' : workspaceContext?.scopeType === 'multiple' ? 'Academic unit staff' : 'Staff & contributors'}</div>
         <div className="academic-page-heading staff-management-heading">
             <div>
-                <span className="academic-kicker">ACADEMIC PEOPLE & RESPONSIBILITIES</span>
-                <h1>Staff & contributor management</h1>
-                <p>Manage verified staff accounts and assign lecturers, course representatives and course advisers to their academic responsibilities.</p>
+                <span className="academic-kicker">{workspaceContext ? `${workspaceContext.shortLabel.toUpperCase()} WORKSPACE` : 'ACADEMIC PEOPLE & RESPONSIBILITIES'}</span>
+                <h1>{workspaceContext?.scopeType === 'department' ? 'Department staff & contributors' : workspaceContext?.scopeType === 'faculty' ? 'Faculty staff & contributors' : workspaceContext?.scopeType === 'multiple' ? 'Academic unit staff & contributors' : 'Staff & contributor management'}</h1>
+                <p>{departmentOnly ? `Manage staff and student contributors for ${workspaceContext.scopeName}.` : workspaceContext?.scopeType === 'faculty' ? `Manage staff and student contributors across ${workspaceContext.scopeName}.` : workspaceContext?.scopeType === 'multiple' ? 'Manage staff and student contributors within your assigned academic units.' : 'Manage verified staff accounts and assign lecturers, course representatives and course advisers to their academic responsibilities.'}</p>
             </div>
             <button type="button" className="btn btn-outline" onClick={() => refresh()} disabled={loading}><Icon name="refresh" size={16} /> Refresh records</button>
         </div>
@@ -254,8 +259,8 @@ export default function StaffManagement() {
             <section className="staff-management-panel" id={`staff-panel-${activeTab}`} role="region" aria-label={`${TABS.find((tab) => tab.id === activeTab)?.label || "Staff management"} section`}>
                 {activeTab === 'directory' && <>
                     <div className="staff-panel-heading"><div><h2>Verified staff directory</h2><p>Staff accounts must be registered and email-verified before they can receive academic assignments.</p></div><span className="staff-record-count">{filteredStaff.length} staff</span></div>
-                    <div className="staff-search-row"><Icon name="search" size={18} /><input type="search" value={staffQuery} onChange={(event) => setStaffQuery(event.target.value)} placeholder="Search by name, staff number, email or department" aria-label="Search staff directory" /></div>
-                    {filteredStaff.length === 0 ? <EmptyState title="No matching staff accounts" detail="Verified and active staff accounts will appear here." /> : <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>Staff member</th><th>Staff number</th><th>Department</th><th>Course assignments</th><th>Adviser groups</th></tr></thead><tbody>{filteredStaff.map((person) => <tr key={person.id}><td><strong>{fullName(person)}</strong><small>{person.email}</small></td><td>{person.staff_no || '—'}</td><td>{person.department_name || 'Not specified'}</td><td>{Number(person.lecturer_course_count || 0)}</td><td>{Number(person.active_adviser_count || 0)}</td></tr>)}</tbody></table></div>}
+                    <div className="staff-search-row"><Icon name="search" size={18} /><input type="search" value={staffQuery} onChange={(event) => setStaffQuery(event.target.value)} placeholder={departmentOnly ? 'Search by name, staff number or email' : 'Search by name, staff number, email or department'} aria-label="Search staff directory" /></div>
+                    {filteredStaff.length === 0 ? <EmptyState title="No matching staff accounts" detail="Verified and active staff accounts will appear here." /> : <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>Staff member</th><th>Staff number</th>{!departmentOnly && <th>Department</th>}<th>Course assignments</th><th>Adviser groups</th></tr></thead><tbody>{filteredStaff.map((person) => <tr key={person.id}><td><strong>{fullName(person)}</strong><small>{person.email}</small></td><td>{person.staff_no || '—'}</td>{!departmentOnly && <td>{person.department_name || 'Not specified'}</td>}<td>{Number(person.lecturer_course_count || 0)}</td><td>{Number(person.active_adviser_count || 0)}</td></tr>)}</tbody></table></div>}
                 </>}
 
                 {activeTab === 'lecturers' && <>

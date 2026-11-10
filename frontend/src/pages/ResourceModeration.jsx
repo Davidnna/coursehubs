@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import Icon from '../components/Icon';
+import { useAuth } from '../auth/AuthContext';
+import { getAdminWorkspaceContext } from '../auth/permissions';
 import { getAdminResources, getResourceFileUrl, moderateResource } from '../api/client';
 import '../academic.css';
 
@@ -10,6 +12,8 @@ function formatBytes(value) {
 }
 
 export default function ResourceModeration() {
+    const { user } = useAuth();
+    const workspaceContext = getAdminWorkspaceContext(user);
     const [status, setStatus] = useState('pending');
     const [resources, setResources] = useState([]);
     const [notes, setNotes] = useState({});
@@ -64,8 +68,8 @@ export default function ResourceModeration() {
     }
 
     return <main className="standard-page resource-moderation-page">
-        <div className="breadcrumb"><span>Administrator workspace</span><Icon name="chevronRight" size={14} />Resource moderation</div>
-        <div className="academic-page-heading"><div><span className="academic-kicker">ACADEMIC LIBRARY</span><h1>Resource moderation</h1><p>Review academic materials before they become visible to students.</p></div><button type="button" className="btn btn-outline" onClick={refresh}><Icon name="refresh" size={16} /> Refresh queue</button></div>
+        <div className="breadcrumb"><span>{workspaceContext ? `${workspaceContext.shortLabel} workspace` : 'Administrator workspace'}</span><Icon name="chevronRight" size={14} />{workspaceContext?.scopeType === 'department' ? 'Department resource review' : workspaceContext?.scopeType === 'faculty' ? 'Faculty resource review' : workspaceContext?.scopeType === 'multiple' ? 'Academic unit resource review' : 'Resource moderation'}</div>
+        <div className="academic-page-heading"><div><span className="academic-kicker">{workspaceContext ? `${workspaceContext.shortLabel.toUpperCase()} LIBRARY` : 'ACADEMIC LIBRARY'}</span><h1>{workspaceContext?.scopeType === 'department' ? 'Department resource review' : workspaceContext?.scopeType === 'faculty' ? 'Faculty resource review' : workspaceContext?.scopeType === 'multiple' ? 'Academic unit resource review' : 'Resource moderation'}</h1><p>{workspaceContext?.scopeType === 'department' ? `Review learning materials submitted for courses in ${workspaceContext.scopeName}.` : workspaceContext?.scopeType === 'faculty' ? `Review learning materials submitted for courses across ${workspaceContext.scopeName}.` : workspaceContext?.scopeType === 'multiple' ? 'Review learning materials submitted for courses in your assigned academic units.' : 'Review academic materials before they become visible to students.'}</p></div><button type="button" className="btn btn-outline" onClick={refresh}><Icon name="refresh" size={16} /> Refresh queue</button></div>
         {error && <div className="academic-alert academic-alert-error" role="alert"><Icon name="alert" size={18} />{error}</div>}
         {notice && <div className="resource-success" role="status"><Icon name="checkCircle" size={18} />{notice}</div>}
         <div className="resource-moderation-toolbar"><label htmlFor="moderation-status">Show submissions</label><select id="moderation-status" value={status} onChange={(event) => setStatus(event.target.value)}><option value="pending">Awaiting review</option><option value="approved">Published</option><option value="rejected">Rejected</option><option value="all">All resources</option></select><span>{resources.length} records</span></div>

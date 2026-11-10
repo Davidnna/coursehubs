@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../components/Icon';
 import { useAuth } from '../auth/AuthContext';
+import { getAdminWorkspaceContext } from '../auth/permissions';
 import {
     assignAdministrator,
     getAdministrators,
@@ -12,6 +13,7 @@ import {
 
 export default function AdministratorManagement() {
     const { user } = useAuth();
+    const workspaceContext = getAdminWorkspaceContext(user);
     const [administrators, setAdministrators] = useState([]);
     const [structure, setStructure] = useState({ faculties: [], departments: [] });
     const [email, setEmail] = useState('');
@@ -147,8 +149,8 @@ export default function AdministratorManagement() {
         || (scopeType !== 'institution' && !scopeId);
 
     return <main className="standard-page workspace-page">
-        <div className="breadcrumb"><Link to="/dashboard">My workspace</Link><Icon name="chevronRight" size={14} />Administrator management</div>
-        <div className="page-lead"><div className="page-eyebrow"><span className="eyebrow-line" /> ACCESS GOVERNANCE</div><h1>Administrator <span>management.</span></h1><p>Assign and revoke administrative authority within the academic scopes you are permitted to manage.</p></div>
+        <div className="breadcrumb"><Link to="/dashboard">{workspaceContext ? `${workspaceContext.shortLabel} workspace` : 'My workspace'}</Link><Icon name="chevronRight" size={14} />{workspaceContext?.scopeType === 'department' ? 'Department administrators' : workspaceContext?.scopeType === 'faculty' ? 'Faculty administrators' : workspaceContext?.scopeType === 'multiple' ? 'Academic unit administrators' : 'Administrator management'}</div>
+        <div className="page-lead"><div className="page-eyebrow"><span className="eyebrow-line" /> {workspaceContext ? `${workspaceContext.shortLabel.toUpperCase()} ACCESS` : 'ACCESS GOVERNANCE'}</div><h1>{workspaceContext?.scopeType === 'department' ? 'Department' : workspaceContext?.scopeType === 'faculty' ? 'Faculty' : workspaceContext?.scopeType === 'multiple' ? 'Academic unit' : 'Administrator'} <span>administrators.</span></h1><p>{workspaceContext?.scopeType === 'department' || workspaceContext?.scopeType === 'faculty' ? `Manage administrator appointments for ${workspaceContext.scopeName}.` : workspaceContext?.scopeType === 'multiple' ? 'Manage administrator appointments within your assigned academic units.' : 'Assign and revoke administrative authority within the academic scopes you are permitted to manage.'}</p></div>
 
         {message && <div className="administrator-management-alert success" role="status">{message}</div>}
         {error && <div className="administrator-management-alert error" role="alert">{error}</div>}
@@ -157,9 +159,13 @@ export default function AdministratorManagement() {
             <div className="widget-top"><span className="widget-symbol"><Icon name="users" /></span><span className="widget-status">NEW ASSIGNMENT</span></div>
             <h2>Assign administrator access</h2>
             <p className="administrator-policy-note">
-                A person may administer multiple faculties or departments when each appointment is authorised.
-                Institution-wide access cannot be combined with faculty or department appointments.
-                Each person has one role per scope; changing that role updates the existing appointment.
+                {workspaceContext?.scopeType === 'department'
+                    ? `Appointments are limited to ${workspaceContext.scopeName}. Each person has one role per department.`
+                    : workspaceContext?.scopeType === 'faculty'
+                        ? `Appointments are limited to ${workspaceContext.scopeName} and its departments. Each person has one role per academic unit.`
+                        : workspaceContext?.scopeType === 'multiple'
+                            ? 'Appointments are limited to your assigned academic units. Each person has one role per academic unit.'
+                            : 'A person may hold multiple authorised academic appointments. Institution-wide access cannot be combined with faculty or department appointments.'}
             </p>
             <form onSubmit={findAccount} className="administrator-management-form" style={{ marginTop: 18 }}>
                 <label htmlFor="administrator-email">Account email address</label>
@@ -178,10 +184,10 @@ export default function AdministratorManagement() {
                     </ul>
                 </div>}
                 {scopeType === 'institution' && account.has_scoped_assignments && <div className="administrator-policy-warning" role="alert">
-                    This account already has faculty or department appointments. Review and revoke those appointments before assigning institution-wide access.
+                    This account already has another academic appointment that cannot be combined with this one. Review its existing access before continuing.
                 </div>}
                 {scopeType !== 'institution' && account.has_institution_assignment && <div className="administrator-policy-warning" role="alert">
-                    This account already has institution-wide administrator access. It cannot also receive a faculty or department appointment.
+                    This account already has another administrator appointment that cannot be combined with this one. Review its existing access before continuing.
                 </div>}
                 {sameRoleAlreadyAssigned && <div className="administrator-policy-warning" role="status">
                     This account already has the selected role in this scope.
@@ -228,7 +234,7 @@ export default function AdministratorManagement() {
             <div className="widget-top"><span className="widget-symbol"><Icon name="shield" /></span><span className="widget-status">CURRENT ACCESS</span></div>
             <h2>Administrator assignments</h2>
             {administrators.some((item) => item.has_scope_hierarchy_conflict) && <div className="administrator-policy-warning" role="status">
-                Some existing appointments combine institution-wide access with faculty or department access. Review these legacy assignments and revoke any redundant appointment. New conflicting appointments are blocked.
+                Some existing appointments overlap in a way that is no longer permitted. Review these assignments and remove any redundant access.
             </div>}
             {loading ? <p>Loading administrator assignments…</p> : administrators.length === 0 ? <p>No administrator assignments are available within your authority.</p> : <div className="administrator-management-table-wrap"><table className="administrator-management-table"><thead><tr><th>Administrator</th><th>Scope</th><th>Permission</th><th>Review</th><th>Action</th></tr></thead><tbody>
                 {administrators.map((item) => <tr key={item.scope_assignment_id}><td><strong>{[item.first_name, item.middle_name, item.surname].filter(Boolean).join(' ')}</strong><small>{item.email}</small></td><td>{scopeLabel(item)}</td><td>{item.role === 'super_admin' ? 'Super Administrator' : 'Administrator'}</td><td>{item.has_scope_hierarchy_conflict ? <span className="administrator-conflict-label">Hierarchy conflict</span> : '—'}</td><td><button className="btn btn-outline" type="button" onClick={() => removeAssignment(item.scope_assignment_id)}>Revoke</button></td></tr>)}

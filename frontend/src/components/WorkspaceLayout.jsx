@@ -4,7 +4,7 @@ import Icon from './Icon';
 import Ambient3D from './Ambient3D';
 import { getResourceAccess } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { canManageAdministrators, canManageAcademicRecords } from '../auth/permissions';
+import { canManageAdministrators, canManageAcademicRecords, getAdminWorkspaceContext } from '../auth/permissions';
 
 const workspaceNav = [
     { to: '/dashboard', label: 'Overview', icon: 'grid', end: true },
@@ -20,8 +20,9 @@ const workspaceNav = [
     { to: '/account', label: 'Account settings', icon: 'user' },
 ];
 
-function WorkspaceBrand() {
-    return <Link to="/dashboard" className="brand" aria-label="CourseHubs workspace"><span className="brand-mark"><span className="mark-dot" /><span className="mark-line mark-line-one" /><span className="mark-line mark-line-two" /><span className="mark-line mark-line-three" /></span><span className="brand-wordmark">course<span>hubs</span><small>YOUR ACADEMIC WORKSPACE</small></span></Link>;
+function WorkspaceBrand({ workspaceContext }) {
+    const descriptor = workspaceContext?.workspaceLabel || 'YOUR ACADEMIC WORKSPACE';
+    return <Link to="/dashboard" className="brand" aria-label="CourseHubs workspace"><span className="brand-mark"><span className="mark-dot" /><span className="mark-line mark-line-one" /><span className="mark-line mark-line-two" /><span className="mark-line mark-line-three" /></span><span className="brand-wordmark">course<span>hubs</span><small>{descriptor}</small></span></Link>;
 }
 
 function UserAvatar({ user, className = '' }) {
@@ -54,6 +55,17 @@ export default function WorkspaceLayout() {
 
     const canContributeResources = Boolean(user?.is_admin || resourceAccess?.can_upload);
     const canManageAdministratorAssignments = canManageAdministrators(user);
+    const workspaceContext = getAdminWorkspaceContext(user);
+    const scopedPrefix = workspaceContext?.shortLabel;
+    const navigationLabels = {
+        '/dashboard': scopedPrefix ? `${scopedPrefix} overview` : 'Overview',
+        '/admin/academics': workspaceContext?.scopeType === 'multiple' ? 'Academic management' : scopedPrefix ? `${scopedPrefix} academics` : 'Academic management',
+        '/admin/administrators': scopedPrefix ? `${scopedPrefix} administrators` : 'Administrator management',
+        '/admin/staff-management': scopedPrefix ? `${scopedPrefix} staff & contributors` : 'Staff & contributors',
+        '/admin/resources': scopedPrefix ? `${scopedPrefix} resource review` : 'Resource moderation',
+        '/admin/resource-reports': scopedPrefix ? `${scopedPrefix} resource reports` : 'Resource reports',
+        '/admin/academic-corrections': scopedPrefix ? `${scopedPrefix} information requests` : 'Academic information requests',
+    };
 
     useEffect(() => {
         if (!menuOpen) return undefined;
@@ -122,21 +134,21 @@ export default function WorkspaceLayout() {
             <Ambient3D />
             <a className="skip-link" href="#main-content">Skip to main content</a>
             <aside ref={sidebarRef} id="workspace-sidebar" className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`} aria-label="Workspace navigation">
-                <div className="sidebar-top"><WorkspaceBrand /><button className="icon-button sidebar-close" aria-label="Close menu" onClick={() => { setMenuOpen(false); menuButtonRef.current?.focus(); }}><Icon name="x" /></button></div>
-                <div className="sidebar-section-label">YOUR WORKSPACE</div>
-                <nav className="sidebar-nav" aria-label="Workspace pages">{workspaceNav.filter((item) => (!item.adminOnly || canManageAcademicRecords(user)) && (!item.administratorManagementOnly || canManageAdministratorAssignments) && (!item.studentOnly || user?.account_type === 'student') && (!item.contributorOnly || canContributeResources)).map((item) => <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMenuOpen(false)} className={({ isActive }) => `side-link ${isActive ? 'side-link-active' : ''}`}><Icon name={item.icon} size={19} /><span>{item.label}</span></NavLink>)}</nav>
+                <div className="sidebar-top"><WorkspaceBrand workspaceContext={workspaceContext} /><button className="icon-button sidebar-close" aria-label="Close menu" onClick={() => { setMenuOpen(false); menuButtonRef.current?.focus(); }}><Icon name="x" /></button></div>
+                <div className="sidebar-section-label">{workspaceContext?.workspaceLabel || 'YOUR WORKSPACE'}</div>
+                <nav className="sidebar-nav" aria-label="Workspace pages">{workspaceNav.filter((item) => (!item.adminOnly || canManageAcademicRecords(user)) && (!item.administratorManagementOnly || canManageAdministratorAssignments) && (!item.studentOnly || user?.account_type === 'student') && (!item.contributorOnly || canContributeResources)).map((item) => <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMenuOpen(false)} className={({ isActive }) => `side-link ${isActive ? 'side-link-active' : ''}`}><Icon name={item.icon} size={19} /><span>{navigationLabels[item.to] || item.label}</span></NavLink>)}</nav>
                 <div className="sidebar-grow" />
                 <Link to="/account" className="sidebar-profile-card" onClick={() => setMenuOpen(false)}>
                     <UserAvatar user={user} className="sidebar-profile-avatar" />
                     <span className="sidebar-profile-copy"><strong>{fullName || 'Your account'}</strong><small>Manage your profile</small></span>
                     <Icon name="chevronRight" size={17} />
                 </Link>
-                <div className="sidebar-bottom"><span className="sidebar-dot" /> EBONYI STATE UNIVERSITY <span className="sidebar-bottom-small">/ CS</span></div>
+                <div className={`sidebar-bottom ${workspaceContext ? 'sidebar-bottom-scoped' : ''}`}><span className="sidebar-dot" /> {workspaceContext?.sidebarName?.toUpperCase() || 'EBONYI STATE UNIVERSITY'}{!workspaceContext && <span className="sidebar-bottom-small">/ CS</span>}</div>
             </aside>
             {menuOpen && <button type="button" className="mobile-overlay" aria-label="Close navigation" onClick={() => { setMenuOpen(false); menuButtonRef.current?.focus(); }} />}
             <div className="main-column">
                 <header className="topbar workspace-topbar">
-                    <div className="topbar-left"><button ref={menuButtonRef} className="icon-button mobile-menu" aria-label="Open workspace menu" aria-expanded={menuOpen} aria-controls="workspace-sidebar" onClick={() => setMenuOpen(true)}><Icon name="menu" /></button><span className="topbar-context"><span className="context-dot" /> PRIVATE COURSEHUBS WORKSPACE</span></div>
+                    <div className="topbar-left"><button ref={menuButtonRef} className="icon-button mobile-menu" aria-label="Open workspace menu" aria-expanded={menuOpen} aria-controls="workspace-sidebar" onClick={() => setMenuOpen(true)}><Icon name="menu" /></button><span className="topbar-context"><span className="context-dot" /> {workspaceContext?.workspaceLabel || 'PRIVATE COURSEHUBS WORKSPACE'}</span></div>
                     <div className="topbar-actions">
                         <div className="workspace-account-menu" ref={accountMenuRef}>
                             <button ref={accountTriggerRef} type="button" className="workspace-account-trigger" aria-haspopup="true" aria-expanded={accountMenuOpen} aria-controls="workspace-account-dropdown" onClick={() => setAccountMenuOpen((open) => !open)}>

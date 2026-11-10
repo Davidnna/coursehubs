@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../components/Icon';
+import { useAuth } from '../auth/AuthContext';
+import { getAdminWorkspaceContext } from '../auth/permissions';
 import {
     getAcademicStructure,
     getAdminAcademicCorrections,
@@ -115,9 +117,9 @@ export default function AcademicCorrectionModeration() {
 
     return (
         <main className="standard-page academic-correction-admin-page">
-            <div className="breadcrumb"><Link to="/dashboard">My workspace</Link><Icon name="chevronRight" size={14} /><span>Administrator workspace</span><Icon name="chevronRight" size={14} />Academic information requests</div>
+            <div className="breadcrumb"><Link to="/dashboard">{workspaceContext ? `${workspaceContext.shortLabel} workspace` : 'My workspace'}</Link><Icon name="chevronRight" size={14} /><span>{workspaceContext ? `${workspaceContext.shortLabel} records` : 'Administrator workspace'}</span><Icon name="chevronRight" size={14} />{workspaceContext?.scopeType === 'department' ? 'Department requests' : workspaceContext?.scopeType === 'faculty' ? 'Faculty requests' : workspaceContext?.scopeType === 'multiple' ? 'Academic unit requests' : 'Academic information requests'}</div>
             <div className="academic-page-heading">
-                <div><span className="academic-kicker">STUDENT RECORDS</span><h1>Academic information requests</h1><p>Verify student requests to correct department, degree programme or current level.</p></div>
+                <div><span className="academic-kicker">{workspaceContext ? `${workspaceContext.shortLabel.toUpperCase()} STUDENT RECORDS` : 'STUDENT RECORDS'}</span><h1>{workspaceContext?.scopeType === 'department' ? 'Department information requests' : workspaceContext?.scopeType === 'faculty' ? 'Faculty information requests' : workspaceContext?.scopeType === 'multiple' ? 'Academic unit information requests' : 'Academic information requests'}</h1><p>{workspaceContext?.scopeType === 'department' ? `Review student requests affecting records in ${workspaceContext.scopeName}.` : workspaceContext?.scopeType === 'faculty' ? `Review student academic record requests across ${workspaceContext.scopeName}.` : workspaceContext?.scopeType === 'multiple' ? 'Review student academic record requests within your assigned academic units.' : 'Verify student requests to correct department, degree programme or current level.'}</p></div>
                 <button type="button" className="btn btn-outline" onClick={refresh}><Icon name="refresh" size={16} /> Refresh queue</button>
             </div>
 
@@ -199,7 +201,11 @@ export default function AcademicCorrectionModeration() {
                                                     </select>
                                                 </div>
                                             </div>
-                                            {requiresDirectoryMapping && <p className="academic-correction-mapping-note"><Icon name="info" size={16} /> The student entered an academic name that is not currently linked to a directory record. If it is valid, add the required <Link to="/admin/academics/structure/faculties">faculty</Link>, <Link to="/admin/academics/structure/departments">department</Link> or <Link to="/admin/academics/structure/programmes">degree programme</Link>, then return here and map it before approval.</p>}
+                                            {requiresDirectoryMapping && <p className="academic-correction-mapping-note"><Icon name="info" size={16} /> {workspaceContext?.scopeType === 'department'
+                                                ? <>The requested academic name is not linked to {workspaceContext.scopeName}. If the degree programme is valid, add it in your department workspace, then return here and map it before approval.</>
+                                                : workspaceContext?.scopeType === 'faculty'
+                                                    ? <>The requested academic name is not linked to your faculty directory. If it is valid, add the required <Link to="/admin/academics/structure/departments">department</Link> or <Link to="/admin/academics/structure/programmes">degree programme</Link>, then return here and map it before approval.</>
+                                                    : <>The student entered an academic name that is not currently linked to a directory record. If it is valid, add the required <Link to="/admin/academics/structure/faculties">faculty</Link>, <Link to="/admin/academics/structure/departments">department</Link> or <Link to="/admin/academics/structure/programmes">degree programme</Link>, then return here and map it before approval.</>}</p>}
                                         </div>
                                         <div className="academic-correction-review-actions">
                                             <div className="field academic-correction-review-note"><label htmlFor={`review-note-${request.id}`}>Decision note <span className="optional">(required for rejection)</span></label><textarea id={`review-note-${request.id}`} rows="2" maxLength="1500" value={notes[request.id] || ''} onChange={(event) => setNotes((previous) => ({ ...previous, [request.id]: event.target.value }))} placeholder="Explain the decision or tell the student what needs to be corrected." /></div>

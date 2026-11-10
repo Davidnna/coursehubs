@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../components/Icon';
+import { useAuth } from '../auth/AuthContext';
+import { getAdminWorkspaceContext } from '../auth/permissions';
 import '../academic.css';
 import { getAdminResourceReports, getResourceFileUrl, moderateResource, resolveAdminResourceReport } from '../api/client';
 import './resource-discovery.css';
 
 export default function ResourceReports() {
+    const { user } = useAuth();
+    const workspaceContext = getAdminWorkspaceContext(user);
     const [status, setStatus] = useState('open');
     const [reports, setReports] = useState([]);
     const [notes, setNotes] = useState({});
@@ -54,8 +58,8 @@ export default function ResourceReports() {
     }
 
     return <main className="standard-page resource-reports-page">
-        <div className="breadcrumb"><Link to="/dashboard">Administrator workspace</Link><Icon name="chevronRight" size={14} />Resource reports</div>
-        <div className="academic-page-heading"><div><span className="academic-kicker">COMMUNITY CONTENT REVIEW</span><h1>Resource reports</h1><p>Review concerns raised about published academic materials and decide whether they should remain in the library.</p></div><button type="button" className="btn btn-outline" onClick={refresh}><Icon name="refresh" size={16} /> Refresh reports</button></div>
+        <div className="breadcrumb"><Link to="/dashboard">{workspaceContext ? `${workspaceContext.shortLabel} workspace` : 'Administrator workspace'}</Link><Icon name="chevronRight" size={14} />{workspaceContext?.scopeType === 'department' ? 'Department resource reports' : workspaceContext?.scopeType === 'faculty' ? 'Faculty resource reports' : workspaceContext?.scopeType === 'multiple' ? 'Academic unit resource reports' : 'Resource reports'}</div>
+        <div className="academic-page-heading"><div><span className="academic-kicker">{workspaceContext ? `${workspaceContext.shortLabel.toUpperCase()} CONTENT REVIEW` : 'COMMUNITY CONTENT REVIEW'}</span><h1>{workspaceContext?.scopeType === 'department' ? 'Department resource reports' : workspaceContext?.scopeType === 'faculty' ? 'Faculty resource reports' : workspaceContext?.scopeType === 'multiple' ? 'Academic unit resource reports' : 'Resource reports'}</h1><p>{workspaceContext?.scopeType === 'department' ? `Review concerns about learning materials for ${workspaceContext.scopeName}.` : workspaceContext?.scopeType === 'faculty' ? `Review concerns about learning materials across ${workspaceContext.scopeName}.` : workspaceContext?.scopeType === 'multiple' ? 'Review concerns about learning materials in your assigned academic units.' : 'Review concerns raised about published academic materials and decide whether they should remain in the library.'}</p></div><button type="button" className="btn btn-outline" onClick={refresh}><Icon name="refresh" size={16} /> Refresh reports</button></div>
         {notice && <div className="academic-alert academic-alert-success" role="status"><Icon name="checkCircle" size={17} />{notice}</div>}
         {error && <div className="academic-alert academic-alert-error" role="alert"><Icon name="alert" size={17} />{error}</div>}
         <div className="resource-moderation-toolbar"><label htmlFor="resource-report-status">Show reports</label><select id="resource-report-status" value={status} onChange={(event) => setStatus(event.target.value)}><option value="open">Awaiting review</option><option value="resolved">Resolved</option><option value="all">All reports</option></select><span>{reports.length} reports</span></div>

@@ -93,13 +93,36 @@ final class Auth
     public static function scopesFor(int $userId): array
     {
         $stmt = Database::connection()->prepare(
-            'SELECT scope_type, scope_id, role FROM administrator_scopes WHERE user_id = ? ORDER BY scope_type, scope_id'
+            "SELECT s.scope_type, s.scope_id, s.role,
+                    CASE
+                        WHEN s.scope_type = 'faculty' THEN f.name
+                        WHEN s.scope_type = 'department' THEN d.name
+                        ELSE NULL
+                    END AS scope_name,
+                    CASE WHEN s.scope_type = 'department' THEN f.name ELSE NULL END AS faculty_name
+             FROM administrator_scopes s
+             LEFT JOIN faculties f
+                ON f.id = CASE
+                    WHEN s.scope_type = 'faculty' THEN s.scope_id
+                    WHEN s.scope_type = 'department' THEN (
+                        SELECT department.faculty_id
+                        FROM departments department
+                        WHERE department.id = s.scope_id
+                    )
+                    ELSE NULL
+                END
+             LEFT JOIN departments d
+                ON s.scope_type = 'department' AND d.id = s.scope_id
+             WHERE s.user_id = ?
+             ORDER BY s.scope_type, s.scope_id"
         );
         $stmt->execute([$userId]);
         return array_map(static fn (array $row): array => [
             'scope_type' => (string) $row['scope_type'],
             'scope_id' => $row['scope_id'] === null ? null : (int) $row['scope_id'],
             'role' => (string) $row['role'],
+            'scope_name' => $row['scope_name'] !== null ? (string) $row['scope_name'] : null,
+            'faculty_name' => $row['faculty_name'] !== null ? (string) $row['faculty_name'] : null,
         ], $stmt->fetchAll());
     }
 

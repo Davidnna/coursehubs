@@ -1,0 +1,158 @@
+name: CourseHubs resource recovery test
+
+on:
+    workflow_dispatch:
+        inputs:
+            confirm_resource_recovery:
+                description: Confirm that coursehubs-resources-recovery is a new, empty bucket in the separate backup Neon project
+                required: true
+                type: boolean
+                default: false
+
+permissions:
+    contents: read
+
+concurrency:
+    group: coursehubs-resource-recovery-test
+    cancel-in-progress: false
+
+jobs:
+    restore-test:
+        name: Restore resources into the empty recovery bucket
+        if: ${{ inputs.confirm_resource_recovery }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 120
+        env:
+            RESTIC_PASSWORD: ${{ secrets.COURSEHUBS_RESTIC_PASSWORD }}
+            RESTIC_HOST: coursehubs-production
+            BACKUP_S3_ENDPOINT: ${{ secrets.COURSEHUBS_BACKUP_S3_ENDPOINT }}
+            BACKUP_S3_BUCKET: ${{ secrets.COURSEHUBS_BACKUP_S3_BUCKET }}
+            BACKUP_S3_REGION: ${{ secrets.COURSEHUBS_BACKUP_S3_REGION }}
+            SOURCE_S3_ENDPOINT: ${{ secrets.COURSEHUBS_SOURCE_S3_ENDPOINT }}
+            AWS_ACCESS_KEY_ID: ${{ secrets.COURSEHUBS_BACKUP_S3_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.COURSEHUBS_BACKUP_S3_SECRET_ACCESS_KEY }}
+            AWS_DEFAULT_REGION: ${{ secrets.COURSEHUBS_BACKUP_S3_REGION }}
+            RESTORE_S3_ENDPOINT: ${{ secrets.COURSEHUBS_RESOURCE_RECOVERY_S3_ENDPOINT }}
+            RESTORE_S3_ACCESS_KEY_ID: ${{ secrets.COURSEHUBS_RESOURCE_RECOVERY_S3_ACCESS_KEY_ID }}
+            RESTORE_S3_SECRET_ACCESS_KEY: ${{ secrets.COURSEHUBS_RESOURCE_RECOVERY_S3_SECRET_ACCESS_KEY }}
+            RESTORE_S3_REGION: ${{ secrets.COURSEHUBS_RESOURCE_RECOVERY_S3_REGION }}
+            RESTORE_CONFIRM: ${{ inputs.confirm_resource_recovery && 'UPLOAD_TO_EMPTY_BUCKET' || '' }}
+
+        steps:
+            - name: Check out the default branch
+              uses: actions/checkout@v4
+
+            - name: Validate recovery settings
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  required=(
+                      RESTIC_PASSWORD
+                      BACKUP_S3_ENDPOINT
+                      BACKUP_S3_BUCKET
+                      BACKUP_S3_REGION
+                      SOURCE_S3_ENDPOINT
+                      AWS_ACCESS_KEY_ID
+                      AWS_SECRET_ACCESS_KEY
+                      RESTORE_S3_ENDPOINT
+                      RESTORE_S3_ACCESS_KEY_ID
+                      RESTORE_S3_SECRET_ACCESS_KEY
+                      RESTORE_S3_REGION
+                      RESTORE_CONFIRM
+                  )
+                  for name in "${required[@]}"; do
+                      if [[ -z "${!name:-}" ]]; then
+                          printf 'Missing required GitHub Actions secret/configuration: %s\n' "$name" >&2
+                          exit 1
+                      fi
+                  done
+                  if [[ "$RESTORE_CONFIRM" != 'UPLOAD_TO_EMPTY_BUCKET' ]]; then
+                      printf '%s\n' 'Resource recovery was not explicitly confirmed.' >&2
+                      exit 1
+                  fi
+                  if [[ "${RESTORE_S3_ENDPOINT%/}" == "${SOURCE_S3_ENDPOINT%/}" ]]; then
+                      printf '%s\n' 'The recovery destination must not be the production resource endpoint.' >&2
+                      exit 1
+                  fi
+
+            - name: Configure encrypted backup repository
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  printf 'RESTIC_REPOSITORY=s3:%s/%s/coursehubs-restic\n' \
+                      "${BACKUP_S3_ENDPOINT%/}" "$BACKUP_S3_BUCKET" >> "$GITHUB_ENV"
+
+            - name: Install recovery tools
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  sudo apt-get update
+                  sudo apt-get install -y restic
+                  python3 -m venv "$RUNNER_TEMP/coursehubs-restore-venv"
+                  "$RUNNER_TEMP/coursehubs-restore-venv/bin/pip" install --disable-pip-version-check -r scripts/backup/requirements.txt
+                  echo "$RUNNER_TEMP/coursehubs-restore-venv/bin" >> "$GITHUB_PATH"
+
+            - name: Restore the latest complete resource snapshot
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  python scripts/backup/restore_resources.py \
+                      --output "$RUNNER_TEMP/coursehubs-resource-restore" \
+                      --upload \
+                      --target-bucket coursehubs-resources-recovery
+
+            - name: Verify restored resource objects
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  python3 - <<'PY'
+                  import os
+                  import boto3
+                  from botocore.config import Config
+
+                  client = boto3.client(
+                      "s3",
+                      endpoint_url=os.environ["RESTORE_S3_ENDPOINT"].rstrip("/"),
+                      aws_access_key_id=os.environ["RESTORE_S3_ACCESS_KEY_ID"],
+                      aws_secret_access_key=os.environ["RESTORE_S3_SECRET_ACCESS_KEY"],
+                      region_name=os.environ["RESTORE_S3_REGION"],
+                      config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
+                  )
+                  paginator = client.get_paginator("list_objects_v2")
+                  objects = [
+                      item
+                      for page in paginator.paginate(Bucket="coursehubs-resources-recovery")
+                      for item in page.get("Contents", [])
+                  ]
+                  total_bytes = sum(int(item.get("Size", 0)) for item in objects)
+                  print(f"Recovered resource objects: {len(objects)}")
+                  print(f"Recovered resource bytes: {total_bytes}")
+                  if not objects:
+                      raise SystemExit("No resource objects were restored.")
+                  PY
+
+            - name: Publish recovery test summary
+              if: success()
+              shell: bash
+              run: |
+                  {
+                      echo '## CourseHubs resource recovery test passed'
+                      echo
+                      echo '- The latest complete resource backup was reconstructed.'
+                      echo '- The destination bucket was confirmed empty before upload.'
+                      echo '- Restored object count and total size were verified against the backup manifest.'
+                      echo '- The production resource bucket was not modified.'
+                      echo '- Destination: `coursehubs-resources-recovery`.'
+                  } >> "$GITHUB_STEP_SUMMARY"
+
+            - name: Record recovery failure
+              if: failure()
+              shell: bash
+              run: |
+                  {
+                      echo '## CourseHubs resource recovery test failed'
+                      echo
+                      echo '- Review the failed step before retrying.'
+                      echo '- The workflow is intended to write only to `coursehubs-resources-recovery`.'
+                      echo '- The production resource bucket was not used as a restore target.'
+                  } >> "$GITHUB_STEP_SUMMARY"

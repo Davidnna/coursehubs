@@ -158,6 +158,10 @@ Add the following repository secrets under **Settings → Secrets and variables 
 | `COURSEHUBS_BACKUP_S3_BUCKET` | Private backup bucket, currently `coursehubs-backups` |
 | `COURSEHUBS_RESTIC_PASSWORD` | Strong, unique encryption password for the backup repository |
 | `COURSEHUBS_RECOVERY_DATABASE_URL` | Direct connection string for the separate, empty `coursehubs_recovery` database used only for non-production recovery tests |
+| `COURSEHUBS_RESOURCE_RECOVERY_S3_ENDPOINT` | Backup project's Neon Object Storage endpoint for the separate resource recovery bucket |
+| `COURSEHUBS_RESOURCE_RECOVERY_S3_ACCESS_KEY_ID` | Read/write storage credential for the resource recovery bucket |
+| `COURSEHUBS_RESOURCE_RECOVERY_S3_SECRET_ACCESS_KEY` | Secret for the resource recovery bucket credential |
+| `COURSEHUBS_RESOURCE_RECOVERY_S3_REGION` | Region for the resource recovery bucket |
 
 Create separate storage credentials for the production source and backup destination. The source credential should only read/list the production resource bucket. The destination credential must be able to list, read, write and delete objects in the private backup bucket so retention pruning can operate. Use the endpoint and region shown for the relevant branch in Neon's Storage connection settings.
 
@@ -172,6 +176,12 @@ Generate the Restic password locally with a password manager or a cryptographica
 5. Leave the initialization option off for every later run. The workflow then runs automatically each day. Use the manual full-resource option only when an additional complete resource snapshot is required.
 
 Do not initialise the same repository a second time. If the repository password or endpoint is changed, stop and review the existing repository before creating another one.
+
+### Resource recovery test
+
+The manually triggered `CourseHubs resource recovery test` workflow reconstructs the latest available resource snapshot from the encrypted Restic repository and uploads it to the separate, empty `coursehubs-resources-recovery` bucket. It requires the four `COURSEHUBS_RESOURCE_RECOVERY_S3_*` repository secrets and an explicit confirmation checkbox. The workflow checks that the destination endpoint differs from the production resource endpoint, and the restore script refuses to upload if the destination bucket contains any objects. It verifies the restored object count and total size against the recovery manifest. It never writes to the production resource bucket or the encrypted backup bucket.
+
+To run it, open **GitHub → Actions → CourseHubs resource recovery test → Run workflow**, select the default branch, confirm that `coursehubs-resources-recovery` is empty, and start the workflow. Review the workflow summary and verify the recovered objects in the Neon Storage browser. Keep the recovery bucket until the test has been reviewed; delete it only when it is no longer needed.
 
 ### Recovery
 
